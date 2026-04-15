@@ -43,23 +43,14 @@ def check_connection() -> str:
         return f"error: {exc}"
 
 
-async def search(
-    query: str,
-    limit: int = 5,
-    language: str | None = None,
-) -> list[dict[str, Any]]:
+async def search(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Semantic search using $vectorize (server-side embedding).
 
     Returns list of {doc_id, text, language, score, type}.
     """
     coll = _get_collection()
 
-    filter_dict: dict[str, Any] = {}
-    if language:
-        filter_dict["language"] = language
-
     cursor = coll.find(
-        filter=filter_dict,
         sort={"$vectorize": query},
         limit=limit,
         include_similarity=True,

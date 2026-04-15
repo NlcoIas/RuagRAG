@@ -1,68 +1,25 @@
-"""RuagRAG — FastAPI backend for RUAG Feedback Management.
-
-Step 1: Prove connections to Astra DB and watsonx Orchestrate.
-"""
+"""RuagRAG — FastAPI backend for RUAG Feedback Management."""
 
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import FastAPI
-from pydantic import BaseModel
 
 from app import astra, wxo
+from app.schemas import (
+    ChatRequest,
+    ChatResponse,
+    HealthResponse,
+    IngestRequest,
+    IngestResponse,
+    SearchRequest,
+    SearchResponse,
+)
 
 app = FastAPI(
     title="RuagRAG API",
     description="RUAG Feedback Management — IBM watsonx Agentic AI",
     version="0.1.0",
 )
-
-
-# --- Request/Response models ---
-
-
-class HealthResponse(BaseModel):
-    status: str
-    astra_db: str
-    wxo: str
-    timestamp: str
-
-
-class ChatRequest(BaseModel):
-    message: str
-    thread_id: str | None = None  # None = new conversation, pass to continue
-    agent_id: str | None = None   # None = default agent from config
-
-
-class ChatResponse(BaseModel):
-    reply: str
-    thread_id: str
-    sources: list[dict[str, Any]]
-
-
-class SearchRequest(BaseModel):
-    query: str
-    limit: int = 5
-    language: str | None = None
-
-
-class SearchResponse(BaseModel):
-    results: list[dict[str, Any]]
-    count: int
-
-
-class IngestRequest(BaseModel):
-    doc_id: str
-    text: str
-    metadata: dict[str, Any] | None = None
-
-
-class IngestResponse(BaseModel):
-    success: bool
-    doc_id: str
-
-
-# --- Endpoints ---
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -101,15 +58,11 @@ async def chat(body: ChatRequest):
     "/api/rag/knowledge/search",
     response_model=SearchResponse,
     operation_id="search_knowledge_base",
-    description="Semantic search in the company knowledge base. Returns ranked results with similarity scores.",
+    description="Semantic search in the company knowledge base.",
 )
 async def rag_search(body: SearchRequest):
     """Search the knowledge base using semantic similarity."""
-    results = await astra.search(
-        query=body.query,
-        limit=body.limit,
-        language=body.language,
-    )
+    results = await astra.search(query=body.query, limit=body.limit)
     return SearchResponse(results=results, count=len(results))
 
 
