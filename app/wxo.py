@@ -100,8 +100,17 @@ async def check_connection() -> str:
         return f"error: {exc}"
 
 
-async def chat(message: str, thread_id: str | None = None) -> dict[str, Any]:
+async def chat(
+    message: str,
+    thread_id: str | None = None,
+    agent_id: str | None = None,
+) -> dict[str, Any]:
     """Send a message to the wxO agent and return the response.
+
+    Args:
+        message: The user's message.
+        thread_id: Pass to continue an existing conversation. None = new conversation.
+        agent_id: Override the default agent. None = use WXO_AGENT_ID from config.
 
     Returns: {"reply": str, "thread_id": str, "sources": list}
     Never raises — returns error messages in the reply field.
@@ -119,7 +128,7 @@ async def chat(message: str, thread_id: str | None = None) -> dict[str, Any]:
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     body: dict[str, Any] = {
         "message": {"role": "user", "content": message},
-        "agent_id": WXO_AGENT_ID,
+        "agent_id": agent_id or WXO_AGENT_ID,
         "environment_id": WXO_ENV_ID,
     }
     if thread_id:

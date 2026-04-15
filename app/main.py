@@ -30,7 +30,8 @@ class HealthResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    thread_id: str | None = None
+    thread_id: str | None = None  # None = new conversation, pass to continue
+    agent_id: str | None = None   # None = default agent from config
 
 
 class ChatResponse(BaseModel):
@@ -88,7 +89,11 @@ async def health():
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest):
     """Send a message to the wxO agent."""
-    result = await wxo.chat(message=body.message, thread_id=body.thread_id)
+    result = await wxo.chat(
+        message=body.message,
+        thread_id=body.thread_id,
+        agent_id=body.agent_id,
+    )
     return ChatResponse(**result)
 
 
