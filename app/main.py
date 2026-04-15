@@ -1,13 +1,15 @@
-"""RuagRAG — FastAPI backend for RUAG Feedback Management."""
+"""RuagRAG — FastAPI tool backend for RUAG Feedback Management.
+
+wxO handles orchestration and user-facing chat.
+FastAPI is the tool layer: wxO calls these endpoints via OpenAPI.
+"""
 
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
 
-from app import astra, wxo
+from app import astra
 from app.schemas import (
-    ChatRequest,
-    ChatResponse,
     CountResponse,
     DeleteResponse,
     HealthResponse,
@@ -20,9 +22,9 @@ from app.schemas import (
 )
 
 app = FastAPI(
-    title="RuagRAG API",
-    description="RUAG Feedback Management — IBM watsonx Agentic AI",
-    version="0.2.0",
+    title="RuagRAG Tool API",
+    description="Tool endpoints for wxO agents. wxO calls these via OpenAPI during ReAct reasoning.",
+    version="0.3.0",
 )
 
 
@@ -31,37 +33,14 @@ app = FastAPI(
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
-    """Check Astra DB and wxO connections."""
+    """Check Astra DB connection status."""
     astra_status = astra.check_connection()
-    wxo_status = await wxo.check_connection()
-
-    if astra_status == "connected" and wxo_status == "connected":
-        status = "ok"
-    elif astra_status == "connected" or wxo_status == "connected":
-        status = "degraded"
-    else:
-        status = "error"
 
     return HealthResponse(
-        status=status,
+        status="ok" if astra_status == "connected" else "error",
         astra_db=astra_status,
-        wxo=wxo_status,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
-
-
-# --- Chat ---
-
-
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest):
-    """Send a message to the wxO agent."""
-    result = await wxo.chat(
-        message=body.message,
-        thread_id=body.thread_id,
-        agent_id=body.agent_id,
-    )
-    return ChatResponse(**result)
 
 
 # --- Knowledge Base ---
@@ -71,7 +50,7 @@ async def chat(body: ChatRequest):
     "/api/rag/knowledge/search",
     response_model=SearchResponse,
     operation_id="search_knowledge_base",
-    description="Semantic search in the company knowledge base.",
+    description="Search the company knowledge base for relevant documents. Returns ranked results by semantic similarity.",
 )
 async def kb_search(body: SearchRequest):
     results = await astra.search(
@@ -154,7 +133,7 @@ async def kb_delete(doc_id: str):
     "/api/rag/tickets/search",
     response_model=SearchResponse,
     operation_id="search_resolved_tickets",
-    description="Semantic search in the resolved tickets collection.",
+    description="Search resolved support tickets for similar past cases and their solutions.",
 )
 async def tickets_search(body: SearchRequest):
     results = await astra.search(

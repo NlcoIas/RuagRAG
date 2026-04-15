@@ -11,23 +11,7 @@ from pydantic import BaseModel
 class HealthResponse(BaseModel):
     status: str
     astra_db: str
-    wxo: str
     timestamp: str
-
-
-# --- Chat ---
-
-
-class ChatRequest(BaseModel):
-    message: str
-    thread_id: str | None = None
-    agent_id: str | None = None
-
-
-class ChatResponse(BaseModel):
-    reply: str
-    thread_id: str
-    sources: list[dict[str, Any]]
 
 
 # --- RAG ---
