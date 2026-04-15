@@ -11,7 +11,23 @@ from pydantic import BaseModel
 class HealthResponse(BaseModel):
     status: str
     astra_db: str
+    wxo: str
     timestamp: str
+
+
+# --- Chat (frontend → FastAPI → wxO) ---
+
+
+class ChatRequest(BaseModel):
+    message: str
+    thread_id: str | None = None  # None = new conversation
+    agent_id: str | None = None   # None = default agent from config
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    thread_id: str
+    sources: list[dict[str, Any]]
 
 
 # --- RAG ---

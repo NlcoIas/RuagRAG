@@ -1,15 +1,19 @@
-"""RuagRAG — FastAPI tool backend for RUAG Feedback Management.
+"""RuagRAG — FastAPI backend for RUAG Feedback Management.
 
-wxO handles orchestration and user-facing chat.
-FastAPI is the tool layer: wxO calls these endpoints via OpenAPI.
+FastAPI is the hub:
+- Frontend talks to FastAPI (chat, tickets, dashboard)
+- FastAPI proxies chat to wxO (user messages → wxO reasoning → response)
+- wxO calls FastAPI back as tools (search KB, search tickets)
 """
 
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
 
-from app import astra
+from app import astra, wxo
 from app.schemas import (
+    ChatRequest,
+    ChatResponse,
     CountResponse,
     DeleteResponse,
     HealthResponse,
@@ -22,9 +26,9 @@ from app.schemas import (
 )
 
 app = FastAPI(
-    title="RuagRAG Tool API",
-    description="Tool endpoints for wxO agents. wxO calls these via OpenAPI during ReAct reasoning.",
-    version="0.3.0",
+    title="RuagRAG API",
+    description="RUAG Feedback Management — IBM watsonx Agentic AI",
+    version="0.4.0",
 )
 
 
@@ -33,17 +37,44 @@ app = FastAPI(
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
-    """Check Astra DB connection status."""
+    """Check Astra DB and wxO connections."""
     astra_status = astra.check_connection()
+    wxo_status = await wxo.check_connection()
+
+    if astra_status == "connected" and wxo_status == "connected":
+        status = "ok"
+    elif astra_status == "connected" or wxo_status == "connected":
+        status = "degraded"
+    else:
+        status = "error"
 
     return HealthResponse(
-        status="ok" if astra_status == "connected" else "error",
+        status=status,
         astra_db=astra_status,
+        wxo=wxo_status,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
 
-# --- Knowledge Base ---
+# --- Chat (frontend → FastAPI → wxO) ---
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(body: ChatRequest):
+    """Forward a user message to wxO and return the agent's response.
+
+    This is the frontend's entry point to wxO. FastAPI proxies the message,
+    and later will also create tickets, log conversations, and update the audit trail.
+    """
+    result = await wxo.chat(
+        message=body.message,
+        thread_id=body.thread_id,
+        agent_id=body.agent_id,
+    )
+    return ChatResponse(**result)
+
+
+# --- Knowledge Base (wxO calls these as tools) ---
 
 
 @app.post(
@@ -126,7 +157,7 @@ async def kb_delete(doc_id: str):
     return DeleteResponse(success=success, doc_id=doc_id)
 
 
-# --- Resolved Tickets ---
+# --- Resolved Tickets (wxO calls these as tools) ---
 
 
 @app.post(
