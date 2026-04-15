@@ -1,0 +1,7 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8085:8080"
+    env_file:
+      - .env
