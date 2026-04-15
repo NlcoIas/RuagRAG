@@ -190,6 +190,24 @@ async def tickets_count():
     return CountResponse(collection="resolved_tickets", count=c)
 
 
+@app.put(
+    "/api/rag/tickets/{doc_id}",
+    response_model=UpdateResponse,
+    operation_id="update_resolved_ticket",
+    description="Update a resolved ticket's text and/or metadata.",
+)
+async def tickets_update(doc_id: str, body: UpdateRequest):
+    if body.text is None and body.metadata is None:
+        raise HTTPException(status_code=422, detail="Provide text and/or metadata to update")
+    success = await astra.update(
+        collection="resolved_tickets",
+        doc_id=doc_id,
+        text=body.text,
+        metadata=body.metadata,
+    )
+    return UpdateResponse(success=success, doc_id=doc_id)
+
+
 @app.delete(
     "/api/rag/tickets/clear",
     response_model=DeleteResponse,
