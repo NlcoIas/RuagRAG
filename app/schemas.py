@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 # --- Health ---
 
+
 class HealthResponse(BaseModel):
     status: str
     astra_db: str
@@ -16,10 +17,11 @@ class HealthResponse(BaseModel):
 
 # --- Chat ---
 
+
 class ChatRequest(BaseModel):
     message: str
-    thread_id: str | None = None  # None = new conversation, pass to continue
-    agent_id: str | None = None   # None = default agent from config
+    thread_id: str | None = None
+    agent_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -29,6 +31,7 @@ class ChatResponse(BaseModel):
 
 
 # --- RAG ---
+
 
 class SearchRequest(BaseModel):
     query: str
@@ -49,3 +52,25 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     success: bool
     doc_id: str
+
+
+class UpdateRequest(BaseModel):
+    text: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class UpdateResponse(BaseModel):
+    success: bool
+    doc_id: str
+
+
+class CountResponse(BaseModel):
+    collection: str
+    count: int
+
+
+class DeleteResponse(BaseModel):
+    success: bool
+    doc_id: str | None = None
+    collection: str | None = None
+    deleted_count: int | None = None
