@@ -74,3 +74,13 @@ class DeleteResponse(BaseModel):
     doc_id: str | None = None
     collection: str | None = None
     deleted_count: int | None = None
+
+
+# --- Jira Webhook ---
+
+
+class JiraWebhookResponse(BaseModel):
+    issue_key: str
+    action: str  # "ai_response" | "ingested" | "ignored"
+    success: bool
+    detail: str | None = None

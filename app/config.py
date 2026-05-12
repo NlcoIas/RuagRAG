@@ -27,3 +27,11 @@ WXO_URL = _require("WXO_URL")
 WXO_AGENT_ID = _require("WXO_AGENT_ID")
 WXO_ENV_ID = _require("WXO_ENV_ID")
 WXO_INSTANCE_ID = _require("WXO_INSTANCE_ID")
+
+# Jira integration (optional — set all four to enable)
+JIRA_BASE_URL = os.getenv("JIRA_BASE_URL")  # e.g. https://yourorg.atlassian.net
+JIRA_EMAIL = os.getenv("JIRA_EMAIL")
+JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
+JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")  # e.g. FEEDBACK
+
+JIRA_ENABLED = all([JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY])

@@ -4,13 +4,17 @@ FastAPI is the hub:
 - Frontend talks to FastAPI (chat, tickets, dashboard)
 - FastAPI proxies chat to wxO (user messages → wxO reasoning → response)
 - wxO calls FastAPI back as tools (search KB, search tickets)
+- Jira webhook → FastAPI → Granite → Jira comment
 """
 
+import logging
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 
-from app import astra, wxo
+from app import astra, jira, wxo
+from app.config import JIRA_ENABLED
+from app.triage import triage_ticket
 from app.schemas import (
     ChatRequest,
     ChatResponse,
@@ -19,11 +23,14 @@ from app.schemas import (
     HealthResponse,
     IngestRequest,
     IngestResponse,
+    JiraWebhookResponse,
     SearchRequest,
     SearchResponse,
     UpdateRequest,
     UpdateResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="RuagRAG API",
@@ -238,3 +245,110 @@ async def tickets_clear():
 async def tickets_delete(doc_id: str):
     success = await astra.delete_one("resolved_tickets", doc_id)
     return DeleteResponse(success=success, doc_id=doc_id)
+
+
+# --- Jira Webhook ---
+
+
+async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> None:
+    """Background task: triage ticket via dual RAG + Granite, set all fields."""
+    logger.info("Triaging ticket %s: %s", issue_key, summary)
+
+    # Run the full triage pipeline (dual search + Granite classification)
+    result = await triage_ticket(summary, description)
+
+    # Set all custom fields on the Jira ticket
+    await jira.set_triage_fields(
+        issue_key=issue_key,
+        department=result.department,
+        urgency=result.urgency,
+        confidence=result.confidence,
+        triage_level=result.triage_level,
+        kb_score=result.kb_score,
+        kb_match=result.kb_match,
+        ticket_score=result.ticket_score,
+        ticket_match=result.ticket_match,
+        suggested_response=result.suggested_response,
+    )
+
+    # Also post the suggested response as an internal comment for quick viewing
+    comment = (
+        f"🤖 AI Triage Complete\n\n"
+        f"Department: {result.department}\n"
+        f"Confidence: {result.confidence} | Level: {result.triage_level}\n"
+        f"KB Score: {result.kb_score:.2f} | Ticket Score: {result.ticket_score:.2f}\n\n"
+        f"Suggested Response:\n{result.suggested_response}"
+    )
+
+    await jira.add_comment(issue_key, comment, internal=True)
+    await jira.add_label(issue_key, "ai-triaged")
+
+
+async def _handle_resolution(issue_key: str, summary: str, description: str) -> None:
+    """Background task: ingest resolved ticket Q+A into Astra for future RAG."""
+    question = f"{summary}\n\n{description}".strip()
+
+    # Fetch the issue to get resolution comments
+    issue_data = await jira.get_issue(issue_key)
+    resolution_comment = ""
+    if issue_data:
+        comments = issue_data.get("fields", {}).get("comment", {}).get("comments", [])
+        # Use the last non-AI comment as the resolution
+        for c in reversed(comments):
+            body = c.get("body", {})
+            text = jira._adf_to_text(body) if isinstance(body, dict) else str(body)
+            if not text.startswith("🤖 AI Suggestion:"):
+                resolution_comment = text
+                break
+
+    doc_text = f"Question: {question}\n\nResolution: {resolution_comment}" if resolution_comment else question
+
+    await astra.ingest(
+        collection="resolved_tickets",
+        doc_id=f"jira-{issue_key}",
+        text=doc_text,
+        metadata={"source": "jira", "issue_key": issue_key, "summary": summary},
+    )
+    logger.info("Ingested resolved ticket %s into resolved_tickets", issue_key)
+
+
+@app.post("/api/jira/webhook", response_model=JiraWebhookResponse)
+async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Receive Jira webhook events.
+
+    Handles two event types:
+    - Issue created → send to Granite agent, post AI response as internal comment
+    - Issue resolved → ingest Q+A into resolved_tickets for future RAG
+    """
+    if not JIRA_ENABLED:
+        raise HTTPException(status_code=503, detail="Jira integration not configured")
+
+    data = await request.json()
+    event = data.get("webhookEvent", "")
+    issue_key, summary, description = jira.extract_issue_text(data)
+
+    if not issue_key:
+        return JiraWebhookResponse(
+            issue_key="", action="ignored", success=False, detail="No issue key found"
+        )
+
+    # Ticket resolved → ingest for future RAG
+    if jira.is_resolution_event(data):
+        background_tasks.add_task(_handle_resolution, issue_key, summary, description)
+        return JiraWebhookResponse(
+            issue_key=issue_key, action="ingested", success=True,
+            detail="Resolution will be ingested into knowledge base",
+        )
+
+    # New ticket created → send to Granite
+    if event == "jira:issue_created":
+        background_tasks.add_task(_handle_new_ticket, issue_key, summary, description)
+        return JiraWebhookResponse(
+            issue_key=issue_key, action="ai_response", success=True,
+            detail="AI response will be posted as internal comment",
+        )
+
+    return JiraWebhookResponse(
+        issue_key=issue_key, action="ignored", success=True,
+        detail=f"Event '{event}' not handled",
+    )
