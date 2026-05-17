@@ -10,10 +10,10 @@ FastAPI is the hub:
 import logging
 from datetime import datetime, timezone
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 
 from app import astra, jira, wxo
-from app.config import JIRA_ENABLED
+from app.config import FORGE_API_KEY, JIRA_ENABLED
 from app.triage import triage_ticket
 from app.schemas import (
     ChatRequest,
@@ -24,6 +24,8 @@ from app.schemas import (
     IngestRequest,
     IngestResponse,
     JiraWebhookResponse,
+    RefineRequest,
+    RefineResponse,
     SearchRequest,
     SearchResponse,
     UpdateRequest,
@@ -352,3 +354,43 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
         issue_key=issue_key, action="ignored", success=True,
         detail=f"Event '{event}' not handled",
     )
+
+
+# --- Refine (Forge → FastAPI → wxO rewrite) ---
+
+
+async def _verify_forge_key(request: Request) -> None:
+    """Validate the Forge API key if one is configured."""
+    from app import config as _cfg  # read at call-time so tests can patch app.config.FORGE_API_KEY
+
+    if not _cfg.FORGE_API_KEY:
+        return
+    auth = request.headers.get("Authorization", "")
+    if auth != f"Bearer {_cfg.FORGE_API_KEY}":
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+@app.post("/api/refine", response_model=RefineResponse, dependencies=[Depends(_verify_forge_key)])
+async def refine(body: RefineRequest):
+    """Rewrite an AI-generated response based on agent feedback.
+
+    Called by the Forge issue panel. Sends a simple rewrite prompt to wxO
+    (no RAG, no tool-calling — just text transformation).
+    """
+    prompt = (
+        f"Rewrite the following customer support response.\n"
+        f"Apply this feedback: {body.feedback}\n\n"
+        f"CURRENT RESPONSE:\n{body.current_text}\n\n"
+        f"Return ONLY the rewritten response text. No explanations, no formatting, no preamble."
+    )
+
+    if body.issue_key:
+        logger.info("Refine request for %s: %s", body.issue_key, body.feedback[:100])
+
+    result = await wxo.chat(message=prompt)
+    reply = result.get("reply", "").strip()
+
+    if not reply:
+        return RefineResponse(refined_text=body.current_text, success=False)
+
+    return RefineResponse(refined_text=reply, success=True)
