@@ -1,7 +1,8 @@
 modules:
-  jira:issuePanel:
+  jira:issueContext:
     - key: ai-reply-assistant
       title: AI Reply Assistant
+      label: AI Reply Assistant
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
       resource: main
       resolver:
@@ -20,7 +21,7 @@ permissions:
   external:
     fetch:
       backend:
-        - address: ruag-app.27cltkbcyac0.eu-de.codeengine.appdomain.cloud
+        - address: nsc-testing.27cltkbcyac0.eu-de.codeengine.appdomain.cloud
 app:
   runtime:
     name: nodejs22.x

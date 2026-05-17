@@ -1,26 +1,30 @@
 :root {
-  --bg-page: #1D2125;
-  --bg-panel: #22272B;
-  --bg-input: #1D2125;
-  --border: #2C333A;
-  --border-focus: #579DFF;
-  --text-primary: #B6C2CF;
-  --text-secondary: #596773;
-  --text-muted: #8C9BAB;
-  --blue: #0C66E4;
+  --bg-page: var(--ds-surface, #FFFFFF);
+  --bg-panel: var(--ds-surface-sunken, #F7F8F9);
+  --bg-input: var(--ds-surface, #FFFFFF);
+  --border: var(--ds-border, #DFE1E6);
+  --border-focus: var(--ds-border-focused, #579DFF);
+  --text-primary: var(--ds-text, #172B4D);
+  --text-secondary: var(--ds-text-subtlest, #6B778C);
+  --text-muted: var(--ds-text-subtle, #5E6C84);
+  --blue: var(--ds-link, #0C66E4);
   --blue-light: #579DFF;
-  --green: #4BCE97;
-  --green-bg: #1C3329;
-  --yellow: #E2B203;
-  --yellow-bg: #332E1B;
-  --blue-bg: #1C2B41;
-  --neutral-bg: #2C333A;
+  --green: #216E4E;
+  --green-bg: #DCFFF1;
+  --yellow: #7F5F01;
+  --yellow-bg: #FFF7D6;
+  --blue-bg: #E9F2FF;
+  --neutral-bg: var(--ds-background-neutral, #DFE1E6);
 }
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html, body, #root {
+  min-height: 50px;
 }
 
 body {
@@ -130,8 +134,8 @@ body {
 }
 
 .badge-green { background: var(--green-bg); color: var(--green); }
-.badge-blue { background: var(--blue-bg); color: var(--blue-light); }
-.badge-neutral { background: var(--neutral-bg); color: var(--text-muted); }
+.badge-blue { background: var(--blue-bg); color: var(--blue); }
+.badge-neutral { background: var(--neutral-bg); color: var(--text-secondary); }
 .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
 
 /* Refinement log */

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { invoke } from "@forge/bridge";
+import { invoke, view } from "@forge/bridge";
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -12,6 +12,10 @@ function App() {
   const [refining, setRefining] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    view.theme.enable();
+  }, []);
 
   useEffect(() => {
     invoke("getInitialData").then((data) => {
