@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 
 from app import astra, jira, wxo
-from app.config import FORGE_API_KEY, JIRA_ENABLED
+from app.config import JIRA_ENABLED
 from app.triage import triage_ticket
 from app.schemas import (
     ChatRequest,
