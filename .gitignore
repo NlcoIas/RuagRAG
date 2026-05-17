@@ -6,3 +6,11 @@ __pycache__/
 .env
 __pycache__/
 *.pyc
+
+# Forge
+forge/node_modules/
+forge/frontend/node_modules/
+forge/static/
+
+# Superpowers
+.superpowers/

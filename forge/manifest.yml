@@ -1,0 +1,26 @@
+modules:
+  jira:issuePanel:
+    - key: ai-reply-assistant
+      title: AI Reply Assistant
+      resource: main
+      resolver:
+        function: resolver
+  function:
+    - key: resolver
+      handler: src/resolver.handler
+  consumer:
+    - key: main
+      resource: static
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - storage:app
+  external:
+    fetch:
+      backend:
+        - '${RUAGRAG_API_URL}'
+app:
+  runtime:
+    name: nodejs18.x
+  id: ari:cloud:ecosystem::app/to-be-assigned

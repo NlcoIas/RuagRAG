@@ -1,0 +1,13 @@
+{
+  "name": "forge-ai-reply-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:frontend": "cd frontend && npm run build",
+    "postinstall": "cd frontend && npm install"
+  },
+  "dependencies": {
+    "@forge/api": "^4.0.0",
+    "@forge/resolver": "^1.6.0"
+  }
+}
