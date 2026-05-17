@@ -84,3 +84,17 @@ class JiraWebhookResponse(BaseModel):
     action: str  # "ai_response" | "ingested" | "ignored"
     success: bool
     detail: str | None = None
+
+
+# --- Refine (Forge → FastAPI → wxO rewrite) ---
+
+
+class RefineRequest(BaseModel):
+    current_text: str
+    feedback: str
+    issue_key: str | None = None  # optional, for logging
+
+
+class RefineResponse(BaseModel):
+    refined_text: str
+    success: bool

@@ -35,3 +35,6 @@ JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
 JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")  # e.g. FEEDBACK
 
 JIRA_ENABLED = all([JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY])
+
+# Forge app authentication (optional — open if not set)
+FORGE_API_KEY = os.getenv("FORGE_API_KEY")
