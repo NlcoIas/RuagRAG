@@ -325,7 +325,14 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
     if not JIRA_ENABLED:
         raise HTTPException(status_code=503, detail="Jira integration not configured")
 
-    data = await request.json()
+    body = await request.body()
+    if not body:
+        return JiraWebhookResponse(
+            issue_key="", action="ignored", success=False, detail="Empty body"
+        )
+
+    import json as _json
+    data = _json.loads(body)
     event = data.get("webhookEvent", "")
     issue_key, summary, description = jira.extract_issue_text(data)
 
