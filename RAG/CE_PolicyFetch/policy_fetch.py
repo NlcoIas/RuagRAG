@@ -57,25 +57,46 @@ def vectorize_search(query: str) -> list[dict]:
     res.raise_for_status()
     return res.json().get("data", {}).get("documents", [])
 
-
+    
 def gold_doc_search(doc_ids: list[str]) -> list[dict]:
-    """Query knowledge_base using the gold_doc_ids filter."""
     if not doc_ids:
         return []
 
     url = f"{ASTRA_ENDPOINT}/api/json/v1/default_keyspace/{COLLECTION}"
+    all_docs = []
 
-    # Query multiple doc_id values in one request using $in
-    payload = {
-        "find": {
-            "filter": {"doc_id": {"$in": doc_ids}},
-            "options": {"limit": TOP_K}
+    for doc_id in doc_ids:
+        payload = {
+            "find": {
+                "filter": {"doc_id": doc_id},
+                "options": {"limit": 3}
+            }
         }
-    }
-    res = requests.post(url, json=payload, headers=get_headers())
-    res.raise_for_status()
-    return res.json().get("data", {}).get("documents", [])
+        res = requests.post(url, json=payload, headers=get_headers())
+        res.raise_for_status()
+        docs = res.json().get("data", {}).get("documents", [])
+        all_docs.extend(docs)
 
+    return all_docs
+
+#### AstraDB doen't use $in ####
+# def gold_doc_search(doc_ids: list[str]) -> list[dict]:
+#     """Query knowledge_base using the gold_doc_ids filter."""
+#     if not doc_ids:
+#         return []
+
+#     url = f"{ASTRA_ENDPOINT}/api/json/v1/default_keyspace/{COLLECTION}"
+
+#     # Query multiple doc_id values in one request using $in
+#     payload = {
+#         "find": {
+#             "filter": {"doc_id": {"$in": doc_ids}},
+#             "options": {"limit": TOP_K}
+#         }
+#     }
+#     res = requests.post(url, json=payload, headers=get_headers())
+#     res.raise_for_status()
+#     return res.json().get("data", {}).get("documents", [])
 
 def parse_chunk(doc: dict, source: str) -> PolicyChunk:
     return PolicyChunk(
