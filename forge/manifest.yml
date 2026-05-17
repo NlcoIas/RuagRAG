@@ -7,12 +7,19 @@ modules:
       resource: main
       resolver:
         function: resolver
+  jira:globalPage:
+    - key: ai-dashboard
+      title: AI Support Dashboard
+      resource: dashboard
+      route: ai-dashboard
   function:
     - key: resolver
       handler: resolver.handler
 resources:
   - key: main
     path: static
+  - key: dashboard
+    path: static/dashboard
 permissions:
   scopes:
     - read:jira-work

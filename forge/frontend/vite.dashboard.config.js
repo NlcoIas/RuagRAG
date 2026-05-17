@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { resolve } from "path";
 
 export default defineConfig({
   plugins: [
@@ -13,8 +14,11 @@ export default defineConfig({
   ],
   base: "./",
   build: {
-    outDir: "../static",
+    outDir: "../static/dashboard",
     emptyOutDir: true,
     modulePreload: false,
+    rollupOptions: {
+      input: resolve(__dirname, "dashboard.html"),
+    },
   },
 });
