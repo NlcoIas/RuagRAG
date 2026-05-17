@@ -114,12 +114,16 @@ def deduplicate(chunks: list[PolicyChunk]) -> list[PolicyChunk]:
     """Remove duplicates by chunk_id. Prefer vector_search entries because they include similarity."""
     seen = {}
     for chunk in chunks:
-        if chunk.chunk_id not in seen:
-            seen[chunk.chunk_id] = chunk
+        key = f"{chunk.doc_id}:{chunk.chunk_id}"  
+        if key not in seen:
+            seen[key] = chunk
+        # if chunk.chunk_id not in seen:
+        #     seen[chunk.chunk_id] = chunk
         else:
             # If a duplicate exists, keep the vector_search version to preserve similarity
             if chunk.source == "vector_search":
-                seen[chunk.chunk_id] = chunk
+                seen[key] = chunk
+                # seen[chunk.chunk_id] = chunk
     return list(seen.values())
 
 
