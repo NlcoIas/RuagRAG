@@ -2,15 +2,16 @@ modules:
   jira:issuePanel:
     - key: ai-reply-assistant
       title: AI Reply Assistant
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
       resource: main
       resolver:
         function: resolver
   function:
     - key: resolver
-      handler: src/resolver.handler
-  consumer:
-    - key: main
-      resource: static
+      handler: resolver.handler
+resources:
+  - key: main
+    path: static
 permissions:
   scopes:
     - read:jira-work
@@ -19,8 +20,8 @@ permissions:
   external:
     fetch:
       backend:
-        - '${RUAGRAG_API_URL}'
+        - address: ruag-app.27cltkbcyac0.eu-de.codeengine.appdomain.cloud
 app:
   runtime:
-    name: nodejs18.x
-  id: ari:cloud:ecosystem::app/to-be-assigned
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/e2a25bcc-adc1-4ce0-a6a1-2b12533f8a8f

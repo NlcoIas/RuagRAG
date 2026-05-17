@@ -1,5 +1,7 @@
-import Resolver from "@forge/resolver";
-import api, { route, storage, fetch } from "@forge/api";
+const Resolver = require("@forge/resolver").default;
+const { route, fetch } = require("@forge/api");
+const api = require("@forge/api").default || require("@forge/api");
+const { kvs } = require("@forge/kvs");
 
 const resolver = new Resolver();
 
@@ -63,13 +65,13 @@ resolver.define("getInitialData", async ({ payload, context }) => {
 
   // Load version history from Forge Storage
   const storageKey = `versions-${issueKey}`;
-  const stored = await storage.get(storageKey);
+  const stored = await kvs.get(storageKey);
   let versions = stored || [];
 
   // If no versions yet, initialize with the original suggestion
   if (versions.length === 0 && suggestionText) {
     versions = [{ text: suggestionText, feedback: null, timestamp: Date.now() }];
-    await storage.set(storageKey, versions);
+    await kvs.set(storageKey, versions);
   }
 
   return { issueKey, suggestion: suggestionText, metadata, versions };
@@ -110,13 +112,13 @@ resolver.define("refine", async ({ payload, context }) => {
   if (data.success) {
     // Save new version to Forge Storage
     const storageKey = `versions-${issueKey}`;
-    const stored = (await storage.get(storageKey)) || [];
+    const stored = (await kvs.get(storageKey)) || [];
     stored.push({
       text: data.refined_text,
       feedback: feedback,
       timestamp: Date.now(),
     });
-    await storage.set(storageKey, stored);
+    await kvs.set(storageKey, stored);
   }
 
   return data;
@@ -157,4 +159,4 @@ resolver.define("send", async ({ payload, context }) => {
   return { success: false, error: errText };
 });
 
-export const handler = resolver.getDefinitions();
+exports.handler = resolver.getDefinitions();
