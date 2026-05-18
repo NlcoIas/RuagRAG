@@ -11,6 +11,8 @@ modules:
     - key: ai-dashboard
       title: AI Support Dashboard
       resource: dashboard
+      resolver:
+        function: resolver
       route: ai-dashboard
   function:
     - key: resolver

@@ -243,3 +243,85 @@ body {
   font-size: 11px;
   margin-top: 4px;
 }
+
+/* Similar tickets / KB matches */
+.similar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.similar-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  transition: border-color 0.15s;
+}
+
+.similar-card:hover {
+  border-color: var(--border-focus);
+}
+
+.kb-card {
+  border-left: 3px solid var(--blue);
+}
+
+.similar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.similar-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.similar-link:hover {
+  text-decoration: underline;
+}
+
+.similar-source {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.similar-score {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.score-high {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.score-med {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.score-low {
+  background: var(--neutral-bg);
+  color: var(--text-secondary);
+}
+
+.similar-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}

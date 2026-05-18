@@ -12,6 +12,8 @@ function App() {
   const [refining, setRefining] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [similarTickets, setSimilarTickets] = useState([]);
+  const [similarKB, setSimilarKB] = useState([]);
 
   useEffect(() => {
     view.theme.enable();
@@ -27,6 +29,8 @@ function App() {
         setCurrentIdx(v.length - 1);
         setEditedText(v[v.length - 1].text);
       }
+      setSimilarTickets(data.similarTickets || []);
+      setSimilarKB(data.similarKB || []);
       setLoading(false);
     });
   }, []);
@@ -193,6 +197,52 @@ function App() {
       )}
 
       {error && <div className="error-text">{error}</div>}
+
+      {/* Similar Resolved Tickets */}
+      {similarTickets.length > 0 && (
+        <>
+          <span className="label" style={{marginTop: 14, display: "block"}}>Similar Resolved Tickets</span>
+          <div className="similar-list">
+            {similarTickets.map((t, i) => (
+              <div key={i} className="similar-card">
+                <div className="similar-header">
+                  {t.issueKey ? (
+                    <a className="similar-link" href={`/browse/${t.issueKey}`} target="_top">
+                      {t.issueKey}
+                    </a>
+                  ) : (
+                    <span className="similar-source">Resolved Ticket</span>
+                  )}
+                  <span className={`similar-score ${t.score > 0.7 ? "score-high" : t.score > 0.4 ? "score-med" : "score-low"}`}>
+                    {(t.score * 100).toFixed(0)}% match
+                  </span>
+                </div>
+                <div className="similar-text">{t.text}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Similar KB Articles */}
+      {similarKB.length > 0 && (
+        <>
+          <span className="label" style={{marginTop: 10, display: "block"}}>Knowledge Base Matches</span>
+          <div className="similar-list">
+            {similarKB.map((k, i) => (
+              <div key={i} className="similar-card kb-card">
+                <div className="similar-header">
+                  <span className="similar-source">KB Article</span>
+                  <span className={`similar-score ${k.score > 0.7 ? "score-high" : k.score > 0.4 ? "score-med" : "score-low"}`}>
+                    {(k.score * 100).toFixed(0)}% match
+                  </span>
+                </div>
+                <div className="similar-text">{k.text}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
