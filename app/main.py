@@ -336,6 +336,8 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
     event = data.get("webhookEvent", "")
     issue_key, summary, description = jira.extract_issue_text(data)
 
+    logger.info("Webhook: event=%s key=%s", event, issue_key)
+
     if not issue_key:
         return JiraWebhookResponse(
             issue_key="", action="ignored", success=False, detail="No issue key found"

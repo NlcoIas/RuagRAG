@@ -242,15 +242,28 @@ async def set_triage_fields(
 
 
 def is_resolution_event(webhook_data: dict[str, Any]) -> bool:
-    """Check if the webhook event is a ticket being resolved."""
+    """Check if the webhook event is a ticket being resolved.
+
+    Detects both:
+    - Standard Jira: changelog field="resolution" with a "to" value
+    - JSM workflows: changelog field="status" transitioning to a resolved state
+    """
     event = webhook_data.get("webhookEvent", "")
     changelog = webhook_data.get("changelog", {})
 
     if event != "jira:issue_updated":
         return False
 
+    resolved_statuses = {"resolved", "done", "closed", "erledigt"}
+
     for item in changelog.get("items", []):
+        # Standard resolution field
         if item.get("field") == "resolution" and item.get("to"):
             return True
+        # JSM status transition to a resolved state
+        if item.get("field") == "status":
+            to_str = (item.get("toString") or "").lower()
+            if to_str in resolved_statuses:
+                return True
 
     return False
