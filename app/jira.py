@@ -164,6 +164,10 @@ FIELD_TICKET_SIMILARITY = "customfield_10059"
 FIELD_KB_BEST_MATCH = "customfield_10060"
 FIELD_TICKET_BEST_MATCH = "customfield_10061"
 FIELD_AI_SUGGESTED_RESPONSE = "customfield_10062"
+FIELD_INTENT = "customfield_10128"
+FIELD_ISSUE_CLASSIFICATION = "customfield_10129"
+FIELD_LANGUAGE = "customfield_10130"
+FIELD_SEVERITY = "customfield_10131"
 
 # Select field option IDs (value → Jira option ID)
 CONFIDENCE_OPTIONS = {"High": "10032", "Medium": "10033", "Low": "10034"}
@@ -174,6 +178,16 @@ DEPARTMENT_OPTIONS = {
 TRIAGE_OPTIONS = {
     "L1 - Self-Service": "10041", "L2 - Agent": "10042", "L3 - Expert": "10043",
 }
+
+INTENT_OPTIONS = {
+    "feature_request": "10076", "bug_report": "10077", "how_to": "10078",
+    "access_request": "10079", "complaint": "10080", "general_inquiry": "10081",
+}
+ISSUE_CLASSIFICATION_OPTIONS = {
+    "context_handling": "10082", "troubleshooting": "10083", "configuration": "10084",
+    "account_management": "10085", "information": "10086", "other": "10087",
+}
+SEVERITY_OPTIONS = {"S1": "10088", "S2": "10089", "S3": "10090", "S4": "10091"}
 
 # Jira priority name → ID mapping (built-in)
 PRIORITY_MAP = {"Highest": "1", "High": "2", "Medium": "3", "Low": "4", "Lowest": "5"}
@@ -190,6 +204,10 @@ async def set_triage_fields(
     ticket_score: float,
     ticket_match: str,
     suggested_response: str,
+    intent: str = "",
+    issue_type: str = "",
+    language: str = "",
+    severity: str = "",
 ) -> bool:
     """Set all AI triage fields on a Jira issue."""
     if not JIRA_ENABLED:
@@ -210,6 +228,12 @@ async def set_triage_fields(
         fields[FIELD_DEPARTMENT] = {"id": DEPARTMENT_OPTIONS[department]}
     if triage_level in TRIAGE_OPTIONS:
         fields[FIELD_TRIAGE_LEVEL] = {"id": TRIAGE_OPTIONS[triage_level]}
+    if intent in INTENT_OPTIONS:
+        fields[FIELD_INTENT] = {"id": INTENT_OPTIONS[intent]}
+    if issue_type in ISSUE_CLASSIFICATION_OPTIONS:
+        fields[FIELD_ISSUE_CLASSIFICATION] = {"id": ISSUE_CLASSIFICATION_OPTIONS[issue_type]}
+    if severity in SEVERITY_OPTIONS:
+        fields[FIELD_SEVERITY] = {"id": SEVERITY_OPTIONS[severity]}
 
     # Number fields
     fields[FIELD_KB_SIMILARITY] = kb_score
@@ -218,6 +242,8 @@ async def set_triage_fields(
     # Text fields
     fields[FIELD_KB_BEST_MATCH] = kb_match[:250]
     fields[FIELD_TICKET_BEST_MATCH] = ticket_match[:250]
+    if language:
+        fields[FIELD_LANGUAGE] = language
     # Textarea fields require Atlassian Document Format
     fields[FIELD_AI_SUGGESTED_RESPONSE] = {
         "version": 1,

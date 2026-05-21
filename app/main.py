@@ -271,13 +271,18 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
         ticket_score=result.ticket_score,
         ticket_match=result.ticket_match,
         suggested_response=result.suggested_response,
+        intent=result.intent,
+        issue_type=result.issue_type,
+        language=result.language,
+        severity=result.severity,
     )
 
     # Also post the suggested response as an internal comment for quick viewing
     comment = (
         f"🤖 AI Triage Complete\n\n"
-        f"Department: {result.department}\n"
+        f"Department: {result.department} | Intent: {result.intent}\n"
         f"Confidence: {result.confidence} | Level: {result.triage_level}\n"
+        f"Severity: {result.severity} | Language: {result.language}\n"
         f"KB Score: {result.kb_score:.2f} | Ticket Score: {result.ticket_score:.2f}\n\n"
         f"Suggested Response:\n{result.suggested_response}"
     )
@@ -344,10 +349,19 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
     department = department_field.get("value", "") if isinstance(department_field, dict) else ""
     triage_level = triage_field.get("value", "") if isinstance(triage_field, dict) else ""
 
-    # Map priority to severity
+    # Extract new classification fields
+    intent_field = fields.get("customfield_10128")
+    issue_class_field = fields.get("customfield_10129")
+    severity_field = fields.get("customfield_10131")
+    language = fields.get("customfield_10130") or ""
+    intent = intent_field.get("value", "") if isinstance(intent_field, dict) else ""
+    issue_classification = issue_class_field.get("value", "") if isinstance(issue_class_field, dict) else ""
+
+    # Severity from custom field or mapped from priority
     priority = fields.get("priority", {}).get("name", "Medium")
     severity_map = {"Highest": "S1", "High": "S2", "Medium": "S3", "Low": "S4", "Lowest": "S4"}
-    severity = severity_map.get(priority, "S3")
+    severity_from_field = severity_field.get("value", "") if isinstance(severity_field, dict) else ""
+    severity = severity_from_field or severity_map.get(priority, "S3")
     urgency = priority
 
     # Extract reporter info
@@ -373,6 +387,9 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
         "ticket_score": float(ticket_score),
         "kb_match": kb_match[:250],
         "ticket_match": ticket_match[:250],
+        "intent": intent,
+        "issue_classification": issue_classification,
+        "language": language,
         "persona_role": reporter_name,
         "persona_id": reporter_id,
         "user_turns": len(user_turns),
