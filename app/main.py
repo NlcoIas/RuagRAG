@@ -287,31 +287,105 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
 
 
 async def _handle_resolution(issue_key: str, summary: str, description: str) -> None:
-    """Background task: ingest resolved ticket Q+A into Astra for future RAG."""
+    """Background task: ingest resolved ticket Q+A into Astra with full metadata."""
     question = f"{summary}\n\n{description}".strip()
 
-    # Fetch the issue to get resolution comments
+    # Fetch the full issue to get all fields + comments
     issue_data = await jira.get_issue(issue_key)
-    resolution_comment = ""
-    if issue_data:
-        comments = issue_data.get("fields", {}).get("comment", {}).get("comments", [])
-        # Use the last non-AI comment as the resolution
-        for c in reversed(comments):
-            body = c.get("body", {})
-            text = jira._adf_to_text(body) if isinstance(body, dict) else str(body)
-            if not text.startswith("🤖 AI Suggestion:"):
-                resolution_comment = text
-                break
+    if not issue_data:
+        logger.error("Could not fetch issue %s for resolution ingestion", issue_key)
+        return
 
+    fields = issue_data.get("fields", {})
+
+    # Extract conversation turns from comments
+    comments = fields.get("comment", {}).get("comments", [])
+    user_turns = [question]
+    assistant_turns = []
+    resolution_comment = ""
+
+    for c in comments:
+        body = c.get("body", {})
+        text = jira._adf_to_text(body) if isinstance(body, dict) else str(body)
+        if not text:
+            continue
+
+        # Check if internal (AI/agent) or external (customer)
+        is_internal = False
+        for prop in c.get("properties", []):
+            if prop.get("key") == "sd.public.comment":
+                is_internal = prop.get("value", {}).get("internal", False)
+
+        if text.startswith("🤖"):
+            assistant_turns.append(text)
+        elif is_internal:
+            assistant_turns.append(text)
+        else:
+            user_turns.append(text)
+
+    # Last non-AI comment is the resolution
+    for c in reversed(comments):
+        body = c.get("body", {})
+        text = jira._adf_to_text(body) if isinstance(body, dict) else str(body)
+        if text and not text.startswith("🤖"):
+            resolution_comment = text
+            break
+
+    # Extract triage fields (set during initial triage)
+    confidence_field = fields.get("customfield_10055")
+    department_field = fields.get("customfield_10056")
+    triage_field = fields.get("customfield_10057")
+    kb_score = fields.get("customfield_10058") or 0
+    ticket_score = fields.get("customfield_10059") or 0
+    kb_match = fields.get("customfield_10060") or ""
+    ticket_match = fields.get("customfield_10061") or ""
+
+    confidence = confidence_field.get("value", "") if isinstance(confidence_field, dict) else ""
+    department = department_field.get("value", "") if isinstance(department_field, dict) else ""
+    triage_level = triage_field.get("value", "") if isinstance(triage_field, dict) else ""
+
+    # Map priority to severity
+    priority = fields.get("priority", {}).get("name", "Medium")
+    severity_map = {"Highest": "S1", "High": "S2", "Medium": "S3", "Low": "S4", "Lowest": "S4"}
+    severity = severity_map.get(priority, "S3")
+    urgency = priority
+
+    # Extract reporter info
+    reporter = fields.get("reporter", {})
+    reporter_name = reporter.get("displayName", "")
+    reporter_id = reporter.get("accountId", "")
+
+    # Build combined text for vectorization (Q+A format)
     doc_text = f"Question: {question}\n\nResolution: {resolution_comment}" if resolution_comment else question
+
+    # Build rich metadata matching the Ticket DB schema
+    metadata = {
+        "source": "jira",
+        "issue_key": issue_key,
+        "summary": summary,
+        "type": "resolved_tickets",
+        "department": department,
+        "confidence": confidence,
+        "triage_level": triage_level,
+        "urgency": urgency,
+        "severity": severity,
+        "kb_score": float(kb_score),
+        "ticket_score": float(ticket_score),
+        "kb_match": kb_match[:250],
+        "ticket_match": ticket_match[:250],
+        "persona_role": reporter_name,
+        "persona_id": reporter_id,
+        "user_turns": len(user_turns),
+        "assistant_turns": len(assistant_turns),
+    }
 
     await astra.ingest(
         collection="resolved_tickets",
         doc_id=f"jira-{issue_key}",
         text=doc_text,
-        metadata={"source": "jira", "issue_key": issue_key, "summary": summary},
+        metadata=metadata,
     )
-    logger.info("Ingested resolved ticket %s into resolved_tickets", issue_key)
+    logger.info("Ingested resolved ticket %s with rich metadata: dept=%s severity=%s", issue_key, department, severity)
 
 
 @app.post("/api/jira/webhook", response_model=JiraWebhookResponse)

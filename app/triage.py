@@ -28,6 +28,10 @@ class TriageResult:
     kb_match: str  # Best KB article title/summary
     ticket_score: float  # Best cosine similarity from resolved_tickets
     ticket_match: str  # Best resolved ticket summary
+    intent: str  # feature_request, bug_report, how_to, access_request, complaint, general_inquiry
+    issue_type: str  # context_handling, troubleshooting, configuration, account_management, information, other
+    language: str  # en, de, fr, it, etc.
+    severity: str  # S1, S2, S3, S4
 
 
 async def triage_ticket(summary: str, description: str) -> TriageResult:
@@ -76,13 +80,21 @@ After searching, respond with EXACTLY this JSON format (no other text):
   "kb_score": 0.85,
   "kb_match": "Brief summary of best knowledge base match",
   "ticket_score": 0.72,
-  "ticket_match": "Brief summary of best resolved ticket match"
+  "ticket_match": "Brief summary of best resolved ticket match",
+  "intent": "feature_request|bug_report|how_to|access_request|complaint|general_inquiry",
+  "issue_type": "context_handling|troubleshooting|configuration|account_management|information|other",
+  "language": "en|de|fr|it"
 }}
 
 CONFIDENCE RULES:
 - If KB score > 0.7 AND Ticket score > 0.7 -> "High" (documented + solved before)
 - If KB score > 0.7 OR Ticket score > 0.7 -> "Medium" (partially matched)
 - If both scores < 0.7 -> "Low" (new/unknown issue)
+
+CLASSIFICATION RULES:
+- intent: What the user wants (feature_request, bug_report, how_to, access_request, complaint, general_inquiry)
+- issue_type: Type of handling needed (context_handling, troubleshooting, configuration, account_management, information, other)
+- language: Detect the language of the ticket text (en, de, fr, it, etc.)
 
 If no matches found for a collection, set its score to 0.0 and match to "No match"."""
 
@@ -122,6 +134,18 @@ def _parse_triage_response(reply: str) -> TriageResult:
 
         ticket_match = str(parsed.get("ticket_match", "No match"))[:200]
         suggested = parsed.get("suggested_response", reply)
+
+        intent = parsed.get("intent", "general_inquiry")
+        valid_intents = ("feature_request", "bug_report", "how_to", "access_request", "complaint", "general_inquiry")
+        if intent not in valid_intents:
+            intent = "general_inquiry"
+
+        issue_type = parsed.get("issue_type", "other")
+        valid_issue_types = ("context_handling", "troubleshooting", "configuration", "account_management", "information", "other")
+        if issue_type not in valid_issue_types:
+            issue_type = "other"
+
+        language = parsed.get("language", "en")[:5]
     else:
         # Fallback — agent didn't return valid JSON
         dept = "General"
@@ -133,6 +157,13 @@ def _parse_triage_response(reply: str) -> TriageResult:
         ticket_score = 0.0
         ticket_match = "No match"
         suggested = reply
+        intent = "general_inquiry"
+        issue_type = "other"
+        language = "en"
+
+    # Map urgency to severity
+    severity_map = {"Highest": "S1", "High": "S2", "Medium": "S3", "Low": "S4", "Lowest": "S4"}
+    severity = severity_map.get(urgency, "S3")
 
     return TriageResult(
         department=dept,
@@ -144,6 +175,10 @@ def _parse_triage_response(reply: str) -> TriageResult:
         kb_match=kb_match,
         ticket_score=round(ticket_score, 4),
         ticket_match=ticket_match,
+        intent=intent,
+        issue_type=issue_type,
+        language=language,
+        severity=severity,
     )
 
 

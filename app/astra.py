@@ -80,13 +80,18 @@ async def search(collection: str, query: str, limit: int = 5) -> list[dict[str, 
 
     results = []
     for doc in cursor:
-        results.append({
+        result = {
             "doc_id": doc.get("_id", ""),
             "text": doc.get("text", doc.get("$vectorize", "")),
-            "language": doc.get("language"),
             "score": doc.get("$similarity"),
             "type": doc.get("type", collection),
-        })
+        }
+        # Include all metadata fields (skip internal Astra fields)
+        skip = {"_id", "$vectorize", "$similarity", "$vector", "text", "type"}
+        for key, value in doc.items():
+            if key not in skip and value is not None:
+                result[key] = value
+        results.append(result)
     return results
 
 
