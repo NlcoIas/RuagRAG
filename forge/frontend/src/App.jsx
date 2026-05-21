@@ -207,7 +207,7 @@ function App() {
               <div key={i} className="similar-card">
                 <div className="similar-header">
                   {t.issueKey ? (
-                    <a className="similar-link" href={`/browse/${t.issueKey}`} target="_top">
+                    <a className="similar-link" href={`https://ruagdesk.atlassian.net/browse/${t.issueKey}`} target="_blank" rel="noopener">
                       {t.issueKey}
                     </a>
                   ) : (
