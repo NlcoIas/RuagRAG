@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 MAX_VECTORIZE_CHARS = 2000
 
-COLLECTIONS = ("knowledge_base", "resolved_tickets")
+COLLECTIONS = ("knowledge_base", "resolved_tickets", "ticket_db")
 
 _VECTORIZE_DEFINITION = (
     CollectionDefinition.builder()

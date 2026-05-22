@@ -402,7 +402,38 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
         text=doc_text,
         metadata=metadata,
     )
-    logger.info("Ingested resolved ticket %s with rich metadata: dept=%s severity=%s", issue_key, department, severity)
+
+    # Also ingest into ticket_db in the teammate's CASE schema format
+    import uuid
+    ticket_db_doc = {
+        "title": issue_key,
+        "issue_key": issue_key,
+        "intent": intent,
+        "issue_type": issue_classification,
+        "severity": severity,
+        "urgency": urgency.lower(),
+        "language": language,
+        "persona_role": reporter_name,
+        "persona_access_tier": "",
+        "gold_doc_ids": kb_match if kb_match != "No match" else "",
+        "rating": 0,
+    }
+    # Add individual conversation turns
+    for i, turn in enumerate(user_turns, 1):
+        ticket_db_doc[f"user_turn_{i}"] = turn
+    for i, turn in enumerate(assistant_turns, 1):
+        ticket_db_doc[f"assistant_turn_{i}"] = turn
+
+    # Vectorize text = all user turns combined
+    vectorize_text = " ".join(user_turns)
+
+    await astra.ingest(
+        collection="ticket_db",
+        doc_id=str(uuid.uuid4()),
+        text=vectorize_text,
+        metadata=ticket_db_doc,
+    )
+    logger.info("Ingested resolved ticket %s into both resolved_tickets and ticket_db", issue_key)
 
 
 @app.post("/api/jira/webhook", response_model=JiraWebhookResponse)
