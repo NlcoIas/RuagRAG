@@ -129,8 +129,9 @@ async def chat(
     body: dict[str, Any] = {
         "message": {"role": "user", "content": message},
         "agent_id": agent_id or WXO_AGENT_ID,
-        "environment_id": WXO_ENV_ID,
     }
+    if WXO_ENV_ID:
+        body["environment_id"] = WXO_ENV_ID
     if thread_id:
         body["thread_id"] = thread_id
 

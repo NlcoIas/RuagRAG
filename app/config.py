@@ -25,7 +25,7 @@ IBM_CLOUD_API_KEY = _require("IBM_CLOUD_API_KEY")
 # watsonx Orchestrate
 WXO_URL = _require("WXO_URL")
 WXO_AGENT_ID = _require("WXO_AGENT_ID")
-WXO_ENV_ID = _require("WXO_ENV_ID")
+WXO_ENV_ID = os.getenv("WXO_ENV_ID", "")
 WXO_INSTANCE_ID = _require("WXO_INSTANCE_ID")
 
 # Jira integration (optional — set all four to enable)
