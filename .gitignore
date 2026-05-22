@@ -14,3 +14,9 @@ forge/static/
 
 # Superpowers
 .superpowers/
+
+# Screenshots and temp files
+*.png
+*.jpeg
+*.jpg
+.playwright-mcp/
