@@ -168,6 +168,7 @@ FIELD_INTENT = "customfield_10128"
 FIELD_ISSUE_CLASSIFICATION = "customfield_10129"
 FIELD_LANGUAGE = "customfield_10130"
 FIELD_SEVERITY = "customfield_10131"
+FIELD_INFO_COMPLETE = "customfield_10164"
 
 # Select field option IDs (value → Jira option ID)
 CONFIDENCE_OPTIONS = {"High": "10032", "Medium": "10033", "Low": "10034"}
@@ -188,6 +189,7 @@ ISSUE_CLASSIFICATION_OPTIONS = {
     "account_management": "10085", "information": "10086", "other": "10087",
 }
 SEVERITY_OPTIONS = {"S1": "10088", "S2": "10089", "S3": "10090", "S4": "10091"}
+INFO_COMPLETE_OPTIONS = {"True": "10124", "False": "10125"}
 
 # Jira priority name → ID mapping (built-in)
 PRIORITY_MAP = {"Highest": "1", "High": "2", "Medium": "3", "Low": "4", "Lowest": "5"}
@@ -208,6 +210,7 @@ async def set_triage_fields(
     issue_type: str = "",
     language: str = "",
     severity: str = "",
+    information_complete: bool = True,
 ) -> bool:
     """Set all AI triage fields on a Jira issue."""
     if not JIRA_ENABLED:
@@ -234,6 +237,8 @@ async def set_triage_fields(
         fields[FIELD_ISSUE_CLASSIFICATION] = {"id": ISSUE_CLASSIFICATION_OPTIONS[issue_type]}
     if severity in SEVERITY_OPTIONS:
         fields[FIELD_SEVERITY] = {"id": SEVERITY_OPTIONS[severity]}
+    info_val = "True" if information_complete else "False"
+    fields[FIELD_INFO_COMPLETE] = {"id": INFO_COMPLETE_OPTIONS[info_val]}
 
     # Number fields
     fields[FIELD_KB_SIMILARITY] = kb_score

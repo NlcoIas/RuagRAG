@@ -259,6 +259,15 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
     # Run the full triage pipeline (dual search + Granite classification)
     result = await triage_ticket(summary, description)
 
+    # Determine if we have enough information
+    # When Gate Agent is connected, this comes from information_complete field
+    # For now: derive from confidence + scores
+    info_complete = not (
+        result.confidence == "Low"
+        and result.kb_score < 0.3
+        and result.ticket_score < 0.3
+    )
+
     # Set all custom fields on the Jira ticket
     await jira.set_triage_fields(
         issue_key=issue_key,
@@ -275,9 +284,51 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
         issue_type=result.issue_type,
         language=result.language,
         severity=result.severity,
+        information_complete=info_complete,
     )
 
     await jira.add_label(issue_key, "ai-triaged")
+
+    # If information is incomplete, auto-reply to customer asking for more details
+    if not info_complete:
+        info_request_messages = {
+            "de": (
+                "Vielen Dank fuer Ihre Anfrage. Um Ihnen besser helfen zu koennen, "
+                "benoetigen wir noch folgende Informationen:\n\n"
+                "- Welches Produkt oder System ist betroffen?\n"
+                "- Welche Schritte haben Sie vor dem Problem durchgefuehrt?\n"
+                "- Gibt es eine Fehlermeldung?\n\n"
+                "Diese Angaben helfen uns, Ihr Anliegen schneller zu loesen."
+            ),
+            "fr": (
+                "Merci pour votre demande. Pour vous aider plus efficacement, "
+                "pourriez-vous nous fournir les informations suivantes:\n\n"
+                "- Quel produit ou systeme est concerne?\n"
+                "- Quelles etapes avez-vous effectuees avant le probleme?\n"
+                "- Y a-t-il un message d'erreur?\n\n"
+                "Ces informations nous aideront a resoudre votre probleme plus rapidement."
+            ),
+            "it": (
+                "Grazie per la sua richiesta. Per aiutarla in modo piu efficace, "
+                "potrebbe fornirci le seguenti informazioni:\n\n"
+                "- Quale prodotto o sistema e interessato?\n"
+                "- Quali passaggi ha eseguito prima del problema?\n"
+                "- C'e un messaggio di errore?\n\n"
+                "Queste informazioni ci aiuteranno a risolvere il problema piu velocemente."
+            ),
+        }
+        lang = result.language[:2] if result.language else "en"
+        ask_msg = info_request_messages.get(lang, (
+            "Thank you for your request. To help you more effectively, "
+            "could you please provide the following details:\n\n"
+            "- What product or system is affected?\n"
+            "- What steps did you take before the issue occurred?\n"
+            "- Are there any error messages?\n\n"
+            "This will help us resolve your issue faster."
+        ))
+
+        await jira.add_comment(issue_key, ask_msg, internal=False)
+        logger.info("Auto-replied to %s requesting more information (lang=%s)", issue_key, lang)
 
 
 async def _handle_resolution(issue_key: str, summary: str, description: str) -> None:
