@@ -521,10 +521,105 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
             detail="AI response will be posted as internal comment",
         )
 
+    # Customer added a comment → re-triage with updated context
+    if event == "jira:issue_updated" and _is_customer_comment(data):
+        background_tasks.add_task(_handle_customer_update, issue_key)
+        return JiraWebhookResponse(
+            issue_key=issue_key, action="re_triage", success=True,
+            detail="Customer update detected, re-triaging",
+        )
+
     return JiraWebhookResponse(
         issue_key=issue_key, action="ignored", success=True,
         detail=f"Event '{event}' not handled",
     )
+
+
+def _is_customer_comment(webhook_data: dict) -> bool:
+    """Check if the webhook event is a customer adding a public comment."""
+    changelog = webhook_data.get("changelog", {})
+    comment = webhook_data.get("comment")
+
+    # Direct comment in webhook payload (public, not internal)
+    if comment:
+        for prop in comment.get("properties", []):
+            if prop.get("key") == "sd.public.comment":
+                if not prop.get("value", {}).get("internal", True):
+                    return True
+        # If no properties, check if it's from a non-agent user
+        if not comment.get("properties"):
+            return True
+
+    # Changelog indicates a comment was added
+    for item in changelog.get("items", []):
+        if item.get("field") == "Comment":
+            return True
+
+    return False
+
+
+async def _handle_customer_update(issue_key: str) -> None:
+    """Background task: re-triage ticket after customer provides more info."""
+    logger.info("Re-triaging ticket %s after customer update", issue_key)
+
+    # Fetch the full issue with all comments
+    issue_data = await jira.get_issue(issue_key)
+    if not issue_data:
+        return
+
+    fields = issue_data.get("fields", {})
+    summary = fields.get("summary", "")
+
+    # Build full context: description + all customer comments
+    desc_raw = fields.get("description")
+    if isinstance(desc_raw, dict):
+        description = jira._adf_to_text(desc_raw)
+    elif isinstance(desc_raw, str):
+        description = desc_raw
+    else:
+        description = ""
+
+    # Append customer comments to context
+    comments = fields.get("comment", {}).get("comments", [])
+    customer_messages = [description]
+    for c in comments:
+        body = c.get("body", {})
+        text = jira._adf_to_text(body) if isinstance(body, dict) else str(body)
+        if not text or text.startswith("🤖"):
+            continue
+        # Skip internal comments
+        is_internal = False
+        for prop in c.get("properties", []):
+            if prop.get("key") == "sd.public.comment":
+                is_internal = prop.get("value", {}).get("internal", False)
+        if not is_internal:
+            customer_messages.append(text)
+
+    full_context = "\n\n".join(customer_messages)
+
+    # Re-run triage with full conversation context
+    result = await triage_ticket(summary, full_context)
+
+    # Update all fields
+    await jira.set_triage_fields(
+        issue_key=issue_key,
+        department=result.department,
+        urgency=result.urgency,
+        confidence=result.confidence,
+        triage_level=result.triage_level,
+        kb_score=result.kb_score,
+        kb_match=result.kb_match,
+        ticket_score=result.ticket_score,
+        ticket_match=result.ticket_match,
+        suggested_response=result.suggested_response,
+        intent=result.intent,
+        issue_type=result.issue_type,
+        language=result.language,
+        severity=result.severity,
+        information_complete=True,  # Customer provided more info
+    )
+
+    logger.info("Re-triaged %s: dept=%s conf=%s", issue_key, result.department, result.confidence)
 
 
 # --- Refine (Forge → FastAPI → wxO rewrite) ---
