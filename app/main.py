@@ -277,17 +277,6 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
         severity=result.severity,
     )
 
-    # Also post the suggested response as an internal comment for quick viewing
-    comment = (
-        f"🤖 AI Triage Complete\n\n"
-        f"Department: {result.department} | Intent: {result.intent}\n"
-        f"Confidence: {result.confidence} | Level: {result.triage_level}\n"
-        f"Severity: {result.severity} | Language: {result.language}\n"
-        f"KB Score: {result.kb_score:.2f} | Ticket Score: {result.ticket_score:.2f}\n\n"
-        f"Suggested Response:\n{result.suggested_response}"
-    )
-
-    await jira.add_comment(issue_key, comment, internal=True)
     await jira.add_label(issue_key, "ai-triaged")
 
 
