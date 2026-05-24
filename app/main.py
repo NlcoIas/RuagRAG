@@ -259,15 +259,6 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
     # Run the full triage pipeline (dual search + Granite classification)
     result = await triage_ticket(summary, description)
 
-    # Determine if we have enough information
-    # When Gate Agent is connected, this comes from information_complete field
-    # For now: derive from confidence + scores
-    info_complete = not (
-        result.confidence == "Low"
-        and result.kb_score < 0.3
-        and result.ticket_score < 0.3
-    )
-
     # Set all custom fields on the Jira ticket
     await jira.set_triage_fields(
         issue_key=issue_key,
@@ -284,13 +275,13 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
         issue_type=result.issue_type,
         language=result.language,
         severity=result.severity,
-        information_complete=info_complete,
+        information_complete=result.information_complete,
     )
 
     await jira.add_label(issue_key, "ai-triaged")
 
     # If information is incomplete, auto-reply to customer asking for more details
-    if not info_complete:
+    if not result.information_complete:
         info_request_messages = {
             "de": (
                 "Vielen Dank fuer Ihre Anfrage. Um Ihnen besser helfen zu koennen, "
