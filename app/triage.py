@@ -43,6 +43,7 @@ class TriageResult:
     language: str  # en, de, fr, it, etc.
     severity: str  # S1, S2, S3, S4
     information_complete: bool  # Whether enough info was provided
+    confidence_score: float  # Raw confidence 0.0-1.0 from Gate Agent
 
 
 async def triage_ticket(summary: str, description: str) -> TriageResult:
@@ -148,18 +149,27 @@ async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | 
     if isinstance(triage, str):
         triage = {}
 
-    # Confidence — Gate Agent may return float 0-1 or string
-    raw_confidence = triage.get("confidence", "None")
+    # Confidence — Gate Agent returns float 0-1
+    raw_confidence = triage.get("confidence", 0.0)
     if isinstance(raw_confidence, (int, float)):
-        confidence = "High" if raw_confidence > 0.7 else "Medium" if raw_confidence > 0.4 else "Low"
+        confidence_score = float(raw_confidence)
+        confidence = "High" if confidence_score > 0.7 else "Medium" if confidence_score > 0.4 else "Low"
     elif raw_confidence in ("High", "Medium", "Low"):
         confidence = raw_confidence
+        confidence_score = {"High": 0.85, "Medium": 0.55, "Low": 0.2}.get(raw_confidence, 0.0)
     else:
         confidence = "Low"
+        confidence_score = 0.0
 
-    triage_level = triage.get("triage_level", "None")
-    if triage_level not in ("L1 - Self-Service", "L2 - Agent", "L3 - Expert"):
-        triage_level = _confidence_to_triage(confidence)
+    raw_triage_level = triage.get("triage_level", "None")
+    # Map Gate Agent's format to our Jira field options
+    triage_level_map = {
+        "L1 - LLM": "L1 - Self-Service",
+        "L1 - Self-Service": "L1 - Self-Service",
+        "L2 - Agent": "L2 - Agent",
+        "L3 - Expert": "L3 - Expert",
+    }
+    triage_level = triage_level_map.get(raw_triage_level, _confidence_to_triage(confidence))
 
     info_complete = triage.get("information_complete", False)
     if isinstance(info_complete, str):
@@ -240,6 +250,7 @@ async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | 
         language=language[:5],
         severity=severity,
         information_complete=info_complete,
+        confidence_score=round(confidence_score, 4),
     )
 
 
@@ -321,6 +332,7 @@ If no matches found for a collection, set its score to 0.0 and match to "No matc
         intent=intent, issue_type=issue_type, language=language,
         severity=severity_map.get(urgency, "S3"),
         information_complete=True,
+        confidence_score=0.0,
     )
 
 
