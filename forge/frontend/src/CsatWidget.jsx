@@ -15,13 +15,22 @@ function CsatWidget() {
 
   useEffect(() => {
     invoke("getCsatData").then((data) => {
-      setIsResolved(data.isResolved);
-      if (data.alreadyRated) {
-        setAlreadyRated(true);
-        setExistingRating(data.rating);
+      if (data && data.isResolved !== undefined) {
+        setIsResolved(data.isResolved);
+        if (data.alreadyRated) {
+          setAlreadyRated(true);
+          setExistingRating(data.rating);
+        }
+      } else {
+        // If resolver can't determine status, show the widget anyway
+        setIsResolved(true);
       }
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      // On error, show widget anyway so customer can rate
+      setIsResolved(true);
+      setLoading(false);
+    });
   }, []);
 
   const handleSubmit = async () => {

@@ -212,7 +212,18 @@ resolver.define("send", async ({ payload, context }) => {
  * Get CSAT data for a ticket (customer portal widget).
  */
 resolver.define("getCsatData", async ({ payload, context }) => {
-  const issueKey = (context.extension.issue || context.extension.request || {}).key || (context.extension || {}).issueKey || "";
+  // Portal modules use different context paths
+  const ext = context.extension || {};
+  const issueKey = (ext.issue || {}).key
+    || (ext.request || {}).key
+    || (ext.request || {}).issueKey
+    || ext.issueKey
+    || ext.issueId
+    || "";
+
+  if (!issueKey) {
+    return { issueKey: "", isResolved: false, rating: null, comment: null, alreadyRated: false };
+  }
 
   // Check if ticket is resolved
   const resp = await api.asApp().requestJira(
