@@ -168,8 +168,8 @@ async def chat(
 
                 # 3. Poll for completion
                 poll_url = f"{base_url}/v1/orchestrate/runs/{run_id}"
-                for _ in range(25):
-                    await asyncio.sleep(1)
+                for _ in range(50):
+                    await asyncio.sleep(2)
                     poll = await client.get(
                         poll_url, headers=headers, params={"thread_id": wxo_thread}
                     )
@@ -181,6 +181,9 @@ async def chat(
                     if status == "completed":
                         result = _parse_response(poll_data)
                         result["thread_id"] = result["thread_id"] or wxo_thread
+                        # Skip flow management messages — keep polling
+                        if result["reply"] and "flow has started" in result["reply"].lower():
+                            continue
                         if not result["reply"]:
                             result["reply"] = "Agent returned an empty response."
                         return result

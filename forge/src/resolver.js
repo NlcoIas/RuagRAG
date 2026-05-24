@@ -252,22 +252,31 @@ resolver.define("submitCsat", async ({ payload, context }) => {
     issueKey,
   });
 
-  // Also try to set the Jira satisfaction field
+  // Post rating as internal comment so agents can see it
+  const stars = "\u2605".repeat(rating) + "\u2606".repeat(5 - rating);
+  const commentText = `Customer Feedback: ${stars} (${rating}/5)${comment ? "\nComment: " + comment : ""}`;
+  const adfBody = {
+    version: 1,
+    type: "doc",
+    content: [{
+      type: "paragraph",
+      content: [{ type: "text", text: commentText }],
+    }],
+  };
   try {
     await api.asApp().requestJira(
-      route`/rest/api/3/issue/${issueKey}`,
+      route`/rest/api/3/issue/${issueKey}/comment`,
       {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fields: {
-            customfield_10041: { rating },
-          },
+          body: adfBody,
+          properties: [{ key: "sd.public.comment", value: { internal: true } }],
         }),
       }
     );
   } catch (e) {
-    // Satisfaction field might not accept this format — that's OK, we have it in KVS
+    // Best effort
   }
 
   return { success: true, rating };
