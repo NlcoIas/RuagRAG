@@ -20,7 +20,7 @@ from app import wxo
 logger = logging.getLogger(__name__)
 
 # Gate Agent ID — handles translation + info check + RAG + response
-GATE_AGENT_ID = "d7266dbb-c6b9-4c72-b981-6d3603160001"
+GATE_AGENT_ID = "e4bedbf4-2419-4a0a-9def-9cc354909165"
 # RAG Agent ID — fallback for direct triage without translation pipeline
 RAG_AGENT_ID = "00e12daf-67b5-426b-a1e9-4cee6cb4ee77"
 
