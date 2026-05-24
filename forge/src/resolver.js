@@ -226,6 +226,7 @@ resolver.define("getDashboardData", async () => {
           "summary", "status", "priority", "labels", "created", "resolutiondate",
           "customfield_10055", "customfield_10056", "customfield_10057",
           "customfield_10058", "customfield_10059", "customfield_10062",
+          "customfield_10041",
         ],
       }),
     }
@@ -247,6 +248,7 @@ resolver.define("getDashboardData", async () => {
 
   const kbScores = [];
   const ticketScores = [];
+  const csatRatings = [];
   const recentTickets = [];
 
   for (const issue of triaged) {
@@ -262,6 +264,9 @@ resolver.define("getDashboardData", async () => {
     if (kb != null) kbScores.push(Number(kb));
     const ts = f.customfield_10059;
     if (ts != null) ticketScores.push(Number(ts));
+
+    const csat = f.customfield_10041;
+    if (csat && csat.rating) csatRatings.push(Number(csat.rating));
 
     if (recentTickets.length < 6) {
       recentTickets.push({
@@ -340,6 +345,9 @@ resolver.define("getDashboardData", async () => {
 
     resolvedCount: resolved.length,
     recentTickets,
+
+    csatAvg: csatRatings.length ? Math.round(avg(csatRatings) * 10) / 10 : null,
+    csatCount: csatRatings.length,
   };
 });
 

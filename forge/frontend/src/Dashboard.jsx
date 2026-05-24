@@ -41,7 +41,7 @@ function Dashboard() {
         ragHitRate: live.ragHitRate || 0, ragHitCount: live.ragHitCount || 0,
         classAccuracy: 89.1, triageAccuracy: 84.7,  // need ground truth to compute
         agentSearchTime: "12s", throughput: 41.2,    // need agent-level tracking
-        csat: 4.3, csatResponses: 142, reopenRate: 3.2, reopenCount: 8, consistentRate: 94,
+        csat: live.csatAvg || 4.3, csatResponses: live.csatCount || 0, reopenRate: 3.2, reopenCount: 8, consistentRate: 94,
         escAccuracy: 84.7, unnecessaryEsc: 8.3, missedEsc: 4.1, escResTime: "18.4h",
         humanOverride: 31.6, overrideCount: 73, editDistance: 12, confCalibration: 91,
         retrievalScore: live.avgKB || 0,
@@ -107,7 +107,7 @@ function Dashboard() {
 
       {section("QTY","Quality",R.green,[
         kpi("First Contact Resolution",d.fcr+"%","L1 resolved without escalation",R.green,null,true),
-        kpi("Customer Satisfaction","4.3/5","Needs JSM satisfaction survey",R.green,null,false),
+        kpi("Customer Satisfaction",d.csat+"/5",d.csatResponses+" survey responses",R.green,null,d.csatResponses > 0),
         kpi("Reopen Rate","3.2%","Needs status transition tracking",R.green,null,false),
         kpi("Consistent Response Rate","94%","Needs response similarity analysis",R.blue,null,false),
       ],4)}

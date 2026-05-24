@@ -395,6 +395,12 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
     severity = severity_from_field or severity_map.get(priority, "S3")
     urgency = priority
 
+    # Extract CSAT feedback if available
+    satisfaction = fields.get("customfield_10041")
+    rating = 0
+    if isinstance(satisfaction, dict):
+        rating = satisfaction.get("rating", 0)
+
     # Extract reporter info
     reporter = fields.get("reporter", {})
     reporter_name = reporter.get("displayName", "")
@@ -425,6 +431,7 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
         "persona_id": reporter_id,
         "user_turns": len(user_turns),
         "assistant_turns": len(assistant_turns),
+        "rating": rating,
     }
 
     await astra.ingest(
