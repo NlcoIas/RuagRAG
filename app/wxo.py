@@ -4,6 +4,7 @@ Flow: get IAM token -> submit run to wxO -> poll until completed -> parse respon
 """
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -98,6 +99,122 @@ async def check_connection() -> str:
         return "connected"
     except Exception as exc:
         return f"error: {exc}"
+
+
+async def chat_flow(
+    message: str,
+    agent_id: str,
+    max_wait: int = 90,
+) -> dict[str, Any]:
+    """Send a message to a flow-based agent and read the result from thread messages.
+
+    Flow-based agents (like the Input Gate) return "A new flow has started..."
+    via run polling. The actual result is delivered as a thread message.
+
+    Args:
+        message: The user's message (JSON string).
+        agent_id: The flow-based agent ID.
+        max_wait: Max seconds to wait for the flow to complete.
+
+    Returns: {"reply": dict (parsed input_json), "thread_id": str}
+    """
+    try:
+        token = await _get_iam_token()
+    except Exception as exc:
+        logger.error("IAM token failed: %s", exc)
+        return {"reply": {}, "thread_id": ""}
+
+    base_url = f"{WXO_URL.rstrip('/')}/instances/{WXO_INSTANCE_ID}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    body: dict[str, Any] = {
+        "message": {"role": "user", "content": message},
+        "agent_id": agent_id,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=WXO_TIMEOUT) as client:
+            # Submit the run
+            resp = await client.post(f"{base_url}/v1/orchestrate/runs", headers=headers, json=body)
+
+            if resp.status_code == 401:
+                _clear_token_cache()
+                token = await _get_iam_token()
+                headers["Authorization"] = f"Bearer {token}"
+                resp = await client.post(f"{base_url}/v1/orchestrate/runs", headers=headers, json=body)
+
+            if resp.status_code >= 400:
+                logger.error("wxO flow submit error %d: %s", resp.status_code, resp.text[:300])
+                return {"reply": {}, "thread_id": ""}
+
+            run_data = resp.json()
+            thread_id = run_data.get("thread_id", "")
+
+            if not thread_id:
+                return {"reply": {}, "thread_id": ""}
+
+            # Poll thread messages until we find the processed result
+            messages_url = f"{base_url}/v1/orchestrate/threads/{thread_id}/messages"
+            for i in range(max_wait // 5):
+                await asyncio.sleep(5)
+
+                msg_resp = await client.get(messages_url, headers=headers)
+                if msg_resp.status_code != 200:
+                    continue
+
+                messages = msg_resp.json()
+
+                # Look for the last assistant message that contains input_json
+                for msg in reversed(messages):
+                    if msg.get("role") != "assistant":
+                        continue
+
+                    content = msg.get("content", [])
+                    text = ""
+                    if isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and "text" in block:
+                                text = block["text"]
+                    elif isinstance(content, str):
+                        text = content
+
+                    # Skip flow management messages
+                    if "flow has started" in text.lower():
+                        continue
+
+                    # Try to parse as JSON with input_json
+                    try:
+                        parsed = json.loads(text) if text.startswith("{") else None
+                    except (json.JSONDecodeError, TypeError):
+                        parsed = None
+
+                    if parsed and "input_json" in parsed:
+                        input_json = parsed["input_json"]
+                        if isinstance(input_json, str):
+                            try:
+                                input_json = json.loads(input_json)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
+                        if isinstance(input_json, dict):
+                            # Check if it has processed data (not just echoed input)
+                            lang = input_json.get("language")
+                            resp_obj = input_json.get("response", {})
+                            has_data = (
+                                (lang and lang != "None")
+                                or (isinstance(resp_obj, dict) and resp_obj.get("original_response_user") not in (None, "None"))
+                            )
+                            if has_data:
+                                logger.info("Flow agent returned processed result after %ds", (i + 1) * 5)
+                                return {"reply": input_json, "thread_id": thread_id}
+
+            logger.warning("Flow agent did not return processed result after %ds", max_wait)
+            return {"reply": {}, "thread_id": thread_id}
+
+    except httpx.TimeoutException:
+        return {"reply": {}, "thread_id": ""}
+    except Exception as exc:
+        logger.error("wxO flow request failed: %s", exc)
+        return {"reply": {}, "thread_id": ""}
 
 
 async def chat(

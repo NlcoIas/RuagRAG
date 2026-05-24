@@ -19,9 +19,11 @@ from app import wxo
 
 logger = logging.getLogger(__name__)
 
-# Gate Agent ID — handles translation + info check + RAG + response
+# Input Gate — flow-based agent, returns processed input_json via thread messages
+INPUT_GATE_ID = "e4bedbf4-2419-4a0a-9def-9cc354909165"
+# Gate Agent — standard agent, returns directly via run polling (fallback)
 GATE_AGENT_ID = "d7266dbb-c6b9-4c72-b981-6d3603160001"
-# RAG Agent ID — fallback for direct triage without translation pipeline
+# RAG Agent — direct triage without translation pipeline (fallback)
 RAG_AGENT_ID = "00e12daf-67b5-426b-a1e9-4cee6cb4ee77"
 
 
@@ -67,9 +69,9 @@ async def triage_ticket(summary: str, description: str) -> TriageResult:
 
 
 async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | None:
-    """Send structured JSON to the Gate Agent and parse its response."""
+    """Send structured JSON to the Input Gate and parse the processed input_json."""
 
-    # Build the Gate Agent input format
+    # Build the Input Gate input format
     gate_input = {
         "original_input_message": [
             {"role": "user", "content": question}
@@ -99,61 +101,39 @@ async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | 
         },
     }
 
-    # Send as JSON string to wxO
+    # Send to Input Gate via flow-based chat (reads thread messages for result)
     message = json.dumps(gate_input, ensure_ascii=False)
-    result = await wxo.chat(message=message, agent_id=GATE_AGENT_ID)
-    reply = result.get("reply", "")
+    result = await wxo.chat_flow(message=message, agent_id=INPUT_GATE_ID, max_wait=90)
+    parsed = result.get("reply", {})
 
-    if not reply or "error" in reply.lower()[:20]:
-        return None
+    # If Input Gate failed, try Gate Agent (standard polling) as fallback
+    if not parsed or not isinstance(parsed, dict):
+        logger.info("Input Gate returned no data, trying Gate Agent fallback")
+        result2 = await wxo.chat(message=message, agent_id=GATE_AGENT_ID)
+        reply2 = result2.get("reply", "")
+        if reply2 and "flow has started" not in reply2.lower():
+            parsed = _extract_json(reply2) or {}
+        if not parsed:
+            return None
 
-    # Parse the Gate Agent's JSON response
-    parsed = _extract_json(reply)
-    if not parsed:
-        return None
+    # Extract language
+    language = parsed.get("language") or "en"
+    if language == "None":
+        language = "en"
 
-    # Check if Gate Agent returned useful data (not just echo of input)
-    # If it returned the old format or just echoed our input, fall back
-    has_response = (
-        parsed.get("response", {}).get("translated_response_user")
-        or parsed.get("response", {}).get("original_response_user")
+    # Extract response — prefer translated (user's language)
+    response = parsed.get("response", {})
+    if not isinstance(response, dict):
+        response = {}
+    suggested = (
+        response.get("translated_response_user")
+        or response.get("original_response_user")
         or parsed.get("translated_response_user")
         or parsed.get("original_response_user")
+        or ""
     )
-    if not has_response or has_response == "None":
-        logger.info("Gate Agent did not generate a response, falling back to RAG Agent")
+    if not suggested or suggested == "None":
         return None
-
-    # Extract language — Gate Agent may have it at top level or we detect from translation
-    language = parsed.get("language") or ""
-    if not language or language == "None":
-        # If english_user_message differs from original, input was non-English
-        original = parsed.get("original_user_message", "")
-        english = parsed.get("english_user_message", "")
-        if original and english and original != english:
-            # Simple language detection from original text
-            if any(c in original for c in ["ä", "ö", "ü", "ß"]) or "ich" in original.lower():
-                language = "de"
-            elif any(w in original.lower() for w in ["je", "mon", "une", "est"]):
-                language = "fr"
-            elif any(w in original.lower() for w in ["il", "mio", "una", "non"]):
-                language = "it"
-            else:
-                language = "en"
-        else:
-            language = "en"
-
-    # Response — Gate Agent returns fields at top level OR nested in response object
-    suggested = (
-        parsed.get("translated_response_user")
-        or parsed.get("original_response_user")
-        or (parsed.get("response", {}) or {}).get("translated_response_user")
-        or (parsed.get("response", {}) or {}).get("original_response_user")
-        or (parsed.get("response_customer_service", {}) or {}).get("RAG_answer")
-        or reply
-    )
-    if suggested == "None" or suggested is None:
-        suggested = reply
 
     # Triage fields
     triage = parsed.get("triage", {})
@@ -228,16 +208,16 @@ async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | 
     policies = rag.get("policies")
     if policies and policies != "None" and isinstance(policies, list) and len(policies) > 0:
         top = policies[0] if isinstance(policies[0], dict) else {}
-        kb_score = float(top.get("score", top.get("similarity", 0)))
-        kb_match = str(top.get("title", top.get("text", "KB match")))[:200]
+        kb_score = float(top.get("policy_score", top.get("score", top.get("similarity", 0))))
+        kb_match = str(top.get("policy_title", top.get("title", top.get("text", "KB match"))))[:200]
     elif policies and policies != "None" and isinstance(policies, str):
         kb_match = policies[:200]
 
     tickets = rag.get("tickets")
     if tickets and tickets != "None" and isinstance(tickets, list) and len(tickets) > 0:
         top = tickets[0] if isinstance(tickets[0], dict) else {}
-        ticket_score = float(top.get("score", top.get("similarity", 0)))
-        ticket_match = str(top.get("title", top.get("text", "Ticket match")))[:200]
+        ticket_score = float(top.get("ticket_score", top.get("score", top.get("similarity", 0))))
+        ticket_match = str(top.get("ticket_title", top.get("title", top.get("text", "Ticket match"))))[:200]
     elif tickets and tickets != "None" and isinstance(tickets, str):
         ticket_match = tickets[:200]
 
