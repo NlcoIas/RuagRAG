@@ -209,6 +209,71 @@ resolver.define("send", async ({ payload, context }) => {
 });
 
 /**
+ * Get CSAT data for a ticket (customer portal widget).
+ */
+resolver.define("getCsatData", async ({ payload, context }) => {
+  const issueKey = (context.extension.issue || context.extension.request || {}).key || (context.extension || {}).issueKey || "";
+
+  // Check if ticket is resolved
+  const resp = await api.asApp().requestJira(
+    route`/rest/api/3/issue/${issueKey}?fields=status`
+  );
+  const issue = await resp.json();
+  const status = (issue.fields || {}).status || {};
+  const statusName = (status.name || "").toLowerCase();
+  const isResolved = ["erledigt", "done", "resolved", "closed"].includes(statusName);
+
+  // Check if already rated
+  const ratingKey = `csat-${issueKey}`;
+  const existing = await kvs.get(ratingKey);
+
+  return {
+    issueKey,
+    isResolved,
+    rating: existing ? existing.rating : null,
+    comment: existing ? existing.comment : null,
+    alreadyRated: !!existing,
+  };
+});
+
+/**
+ * Submit CSAT rating from customer portal.
+ */
+resolver.define("submitCsat", async ({ payload, context }) => {
+  const { rating, comment } = payload;
+  const issueKey = (context.extension.issue || context.extension.request || {}).key || (context.extension || {}).issueKey || "";
+
+  // Save to Forge Storage
+  const ratingKey = `csat-${issueKey}`;
+  await kvs.set(ratingKey, {
+    rating,
+    comment: comment || "",
+    timestamp: Date.now(),
+    issueKey,
+  });
+
+  // Also try to set the Jira satisfaction field
+  try {
+    await api.asApp().requestJira(
+      route`/rest/api/3/issue/${issueKey}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            customfield_10041: { rating },
+          },
+        }),
+      }
+    );
+  } catch (e) {
+    // Satisfaction field might not accept this format — that's OK, we have it in KVS
+  }
+
+  return { success: true, rating };
+});
+
+/**
  * Fetch live dashboard data from Jira via JQL.
  * Aggregates all ai-triaged tickets for KPI calculations.
  */

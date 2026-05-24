@@ -14,6 +14,12 @@ modules:
       resolver:
         function: resolver
       route: ai-dashboard
+  jiraServiceManagement:portalRequestDetail:
+    - key: csat-widget
+      title: Rate our service
+      resource: csat
+      resolver:
+        function: resolver
   function:
     - key: resolver
       handler: resolver.handler
@@ -22,6 +28,8 @@ resources:
     path: static
   - key: dashboard
     path: static/dashboard
+  - key: csat
+    path: static/csat
 permissions:
   scopes:
     - read:jira-work
