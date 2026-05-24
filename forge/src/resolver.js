@@ -263,6 +263,23 @@ resolver.define("submitCsat", async ({ payload, context }) => {
     issueKey,
   });
 
+  // Write rating to Jira custom field (visible in sidebar)
+  const starsText = "\u2605".repeat(rating) + "\u2606".repeat(5 - rating) + " (" + rating + "/5)";
+  try {
+    await api.asApp().requestJira(
+      route`/rest/api/3/issue/${issueKey}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: { customfield_10197: starsText + (comment ? " - " + comment : "") },
+        }),
+      }
+    );
+  } catch (e) {
+    // Best effort
+  }
+
   // Post rating as internal comment so agents can see it
   const stars = "\u2605".repeat(rating) + "\u2606".repeat(5 - rating);
   const commentText = `Customer Feedback: ${stars} (${rating}/5)${comment ? "\nComment: " + comment : ""}`;
