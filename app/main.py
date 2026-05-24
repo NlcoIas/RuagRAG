@@ -434,37 +434,58 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
         metadata=metadata,
     )
 
-    # Also ingest into ticket_db in the teammate's CASE schema format
-    import uuid
-    ticket_db_doc = {
-        "title": issue_key,
-        "issue_key": issue_key,
-        "intent": intent,
-        "issue_type": issue_classification,
-        "severity": severity,
-        "urgency": urgency.lower(),
-        "language": language,
-        "persona_role": reporter_name,
-        "persona_access_tier": "",
-        "gold_doc_ids": kb_match if kb_match != "No match" else "",
-        "rating": 0,
-    }
-    # Add individual conversation turns
-    for i, turn in enumerate(user_turns, 1):
-        ticket_db_doc[f"user_turn_{i}"] = turn
-    for i, turn in enumerate(assistant_turns, 1):
-        ticket_db_doc[f"assistant_turn_{i}"] = turn
-
-    # Vectorize text = all user turns combined
+    # Build conversation string for redundancy checker
+    conversation_lines = []
+    for turn in user_turns:
+        conversation_lines.append(f"User: {turn}")
+    for turn in assistant_turns:
+        conversation_lines.append(f"Assistant: {turn}")
+    conversation_str = "\n".join(conversation_lines)
     vectorize_text = " ".join(user_turns)
 
-    await astra.ingest(
-        collection="ticket_db",
-        doc_id=str(uuid.uuid4()),
-        text=vectorize_text,
-        metadata=ticket_db_doc,
-    )
-    logger.info("Ingested resolved ticket %s into both resolved_tickets and ticket_db", issue_key)
+    # Call redundancy checker before inserting into ticket_db
+    # The redundancy service handles the insert if decision=POST
+    redundancy_url = "https://ruag-ticket-redundancy.27cltkbcyac0.eu-de.codeengine.appdomain.cloud"
+    redundancy_payload = {
+        "title": issue_key,
+        "intent": intent or None,
+        "issue_type": issue_classification or None,
+        "severity": severity or None,
+        "urgency": urgency.lower() or None,
+        "language": language or None,
+        "persona_role": reporter_name or None,
+        "persona_access_tier": None,
+        "gold_doc_ids": kb_match if kb_match != "No match" else None,
+        "vectorize_text": vectorize_text,
+        "conversation": conversation_str,
+    }
+
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{redundancy_url}/redundancy-check",
+                json=redundancy_payload,
+            )
+            if resp.status_code == 200:
+                result = resp.json()
+                decision = result.get("decision", "POST")
+                reason = result.get("reason", "")
+                matched_id = result.get("matched_ticket_id")
+                llm_checked = result.get("llm_checked", False)
+                logger.info(
+                    "Redundancy check %s: decision=%s llm_checked=%s matched=%s reason=%s",
+                    issue_key, decision, llm_checked, matched_id, reason,
+                )
+            else:
+                logger.warning(
+                    "Redundancy check failed for %s (HTTP %d), inserting anyway",
+                    issue_key, resp.status_code,
+                )
+    except Exception as exc:
+        logger.warning("Redundancy check error for %s: %s, skipping", issue_key, exc)
+
+    logger.info("Ingested resolved ticket %s into resolved_tickets (ticket_db via redundancy checker)", issue_key)
 
 
 @app.post("/api/jira/webhook", response_model=JiraWebhookResponse)
