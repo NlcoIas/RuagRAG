@@ -540,19 +540,13 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
             detail="AI response will be posted as internal comment",
         )
 
-    # Customer added a comment → re-triage only if info was incomplete
+    # Customer added a comment → re-triage with full conversation context
     if event == "jira:issue_updated" and _is_customer_comment(data):
-        # Check if this ticket was waiting for more info
-        issue_data = await jira.get_issue(issue_key)
-        if issue_data:
-            info_field = issue_data.get("fields", {}).get("customfield_10164")
-            info_complete = info_field.get("value", "") if isinstance(info_field, dict) else ""
-            if info_complete == "False":
-                background_tasks.add_task(_handle_customer_update, issue_key)
-                return JiraWebhookResponse(
-                    issue_key=issue_key, action="re_triage", success=True,
-                    detail="Customer provided more info, re-triaging",
-                )
+        background_tasks.add_task(_handle_customer_update, issue_key)
+        return JiraWebhookResponse(
+            issue_key=issue_key, action="re_triage", success=True,
+            detail="Customer comment detected, re-triaging with full context",
+        )
 
     return JiraWebhookResponse(
         issue_key=issue_key, action="ignored", success=True,
