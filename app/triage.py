@@ -20,7 +20,7 @@ from app import wxo
 logger = logging.getLogger(__name__)
 
 # Gate Agent ID — handles translation + info check + RAG + response
-GATE_AGENT_ID = "e4bedbf4-2419-4a0a-9def-9cc354909165"
+GATE_AGENT_ID = "d7266dbb-c6b9-4c72-b981-6d3603160001"
 # RAG Agent ID — fallback for direct triage without translation pipeline
 RAG_AGENT_ID = "00e12daf-67b5-426b-a1e9-4cee6cb4ee77"
 
@@ -124,23 +124,34 @@ async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | 
         logger.info("Gate Agent did not generate a response, falling back to RAG Agent")
         return None
 
-    # Extract fields — handle both new and old Gate Agent formats
-    language = parsed.get("language") or "en"
-    if language == "None":
-        language = "en"
+    # Extract language — Gate Agent may have it at top level or we detect from translation
+    language = parsed.get("language") or ""
+    if not language or language == "None":
+        # If english_user_message differs from original, input was non-English
+        original = parsed.get("original_user_message", "")
+        english = parsed.get("english_user_message", "")
+        if original and english and original != english:
+            # Simple language detection from original text
+            if any(c in original for c in ["ä", "ö", "ü", "ß"]) or "ich" in original.lower():
+                language = "de"
+            elif any(w in original.lower() for w in ["je", "mon", "une", "est"]):
+                language = "fr"
+            elif any(w in original.lower() for w in ["il", "mio", "una", "non"]):
+                language = "it"
+            else:
+                language = "en"
+        else:
+            language = "en"
 
-    # Response — try new format first, then old format
-    response = parsed.get("response", {})
-    if isinstance(response, str):
-        suggested = response
-    else:
-        suggested = (
-            response.get("translated_response_user")
-            or response.get("original_response_user")
-            or parsed.get("translated_response_user")
-            or parsed.get("original_response_user")
-            or reply
-        )
+    # Response — Gate Agent returns fields at top level OR nested in response object
+    suggested = (
+        parsed.get("translated_response_user")
+        or parsed.get("original_response_user")
+        or (parsed.get("response", {}) or {}).get("translated_response_user")
+        or (parsed.get("response", {}) or {}).get("original_response_user")
+        or (parsed.get("response_customer_service", {}) or {}).get("RAG_answer")
+        or reply
+    )
     if suggested == "None" or suggested is None:
         suggested = reply
 
