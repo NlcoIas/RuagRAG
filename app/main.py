@@ -285,20 +285,8 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
     # L3 escalation — flag ticket for expert attention
     if result.triage_level == "L3 - Expert":
         await jira.add_label(issue_key, "escalated")
-        # Ensure priority is at least High for L3
         if result.urgency not in ("Highest", "High"):
             await jira.set_priority(issue_key, "High")
-        # Post internal escalation note so agents see it immediately
-        esc_note = (
-            f"ESCALATION: This ticket has been triaged as L3 - Expert.\n\n"
-            f"Reason: AI confidence is {result.confidence} "
-            f"(score: {result.confidence_score:.2f}). "
-            f"Department: {result.department}. Severity: {result.severity}.\n"
-            f"KB match score: {result.kb_score:.2f} | "
-            f"Ticket match score: {result.ticket_score:.2f}\n\n"
-            f"This ticket requires specialist review."
-        )
-        await jira.add_comment(issue_key, esc_note, internal=True)
         logger.info("Escalated %s to L3 - Expert (conf=%s)", issue_key, result.confidence)
 
     # If information is incomplete, auto-reply to customer asking for more details
@@ -692,14 +680,6 @@ async def _handle_customer_update(issue_key: str) -> None:
         await jira.add_label(issue_key, "escalated")
         if result.urgency not in ("Highest", "High"):
             await jira.set_priority(issue_key, "High")
-        esc_note = (
-            f"ESCALATION: Re-triage elevated this ticket to L3 - Expert.\n\n"
-            f"AI confidence: {result.confidence} "
-            f"(score: {result.confidence_score:.2f}). "
-            f"Department: {result.department}. Severity: {result.severity}.\n"
-            f"This ticket requires specialist review."
-        )
-        await jira.add_comment(issue_key, esc_note, internal=True)
         logger.info("Escalated %s to L3 after re-triage", issue_key)
 
     logger.info("Re-triaged %s: dept=%s conf=%s", issue_key, result.department, result.confidence)
