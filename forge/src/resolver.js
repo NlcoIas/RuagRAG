@@ -376,6 +376,7 @@ resolver.define("getDashboardData", async () => {
         summary: f.summary || "",
         department: dept || "General",
         confidence: conf || "Low",
+        triageLevel: tl || "",
         created: f.created,
       });
     }

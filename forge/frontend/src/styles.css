@@ -137,6 +137,35 @@ body {
 .badge-blue { background: var(--blue-bg); color: var(--blue); }
 .badge-neutral { background: var(--neutral-bg); color: var(--text-secondary); }
 .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge-red { background: #FFEDEB; color: #BF2600; }
+
+/* Escalation banner */
+.escalation-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #FFEDEB;
+  border: 1px solid #FF8F73;
+  border-left: 4px solid #BF2600;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #BF2600;
+}
+
+.escalation-banner .esc-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.escalation-banner .esc-detail {
+  font-weight: 400;
+  font-size: 11px;
+  color: #6B778C;
+  margin-top: 2px;
+}
 
 /* Refinement log */
 .refine-log {

@@ -103,18 +103,13 @@ async def _triage_via_gate_agent(summary: str, question: str) -> TriageResult | 
 
     # Send to Input Gate via flow-based chat (reads thread messages for result)
     message = json.dumps(gate_input, ensure_ascii=False)
-    result = await wxo.chat_flow(message=message, agent_id=INPUT_GATE_ID, max_wait=90)
+    result = await wxo.chat_flow(message=message, agent_id=INPUT_GATE_ID, max_wait=120)
     parsed = result.get("reply", {})
 
-    # If Input Gate failed, try Gate Agent (standard polling) as fallback
+    # If Input Gate failed, fall back directly (Gate Agent also takes too long)
     if not parsed or not isinstance(parsed, dict):
-        logger.info("Input Gate returned no data, trying Gate Agent fallback")
-        result2 = await wxo.chat(message=message, agent_id=GATE_AGENT_ID)
-        reply2 = result2.get("reply", "")
-        if reply2 and "flow has started" not in reply2.lower():
-            parsed = _extract_json(reply2) or {}
-        if not parsed:
-            return None
+        logger.info("Input Gate returned no data, falling back to RAG Agent")
+        return None
 
     # Extract language
     language = parsed.get("language") or "en"

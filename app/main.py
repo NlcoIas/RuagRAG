@@ -10,6 +10,8 @@ FastAPI is the hub:
 import logging
 from datetime import datetime, timezone
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 
 from app import astra, jira, wxo
@@ -280,6 +282,25 @@ async def _handle_new_ticket(issue_key: str, summary: str, description: str) -> 
 
     await jira.add_label(issue_key, "ai-triaged")
 
+    # L3 escalation — flag ticket for expert attention
+    if result.triage_level == "L3 - Expert":
+        await jira.add_label(issue_key, "escalated")
+        # Ensure priority is at least High for L3
+        if result.urgency not in ("Highest", "High"):
+            await jira.set_priority(issue_key, "High")
+        # Post internal escalation note so agents see it immediately
+        esc_note = (
+            f"ESCALATION: This ticket has been triaged as L3 - Expert.\n\n"
+            f"Reason: AI confidence is {result.confidence} "
+            f"(score: {result.confidence_score:.2f}). "
+            f"Department: {result.department}. Severity: {result.severity}.\n"
+            f"KB match score: {result.kb_score:.2f} | "
+            f"Ticket match score: {result.ticket_score:.2f}\n\n"
+            f"This ticket requires specialist review."
+        )
+        await jira.add_comment(issue_key, esc_note, internal=True)
+        logger.info("Escalated %s to L3 - Expert (conf=%s)", issue_key, result.confidence)
+
     # If information is incomplete, auto-reply to customer asking for more details
     if not result.information_complete:
         info_request_messages = {
@@ -395,11 +416,18 @@ async def _handle_resolution(issue_key: str, summary: str, description: str) -> 
     severity = severity_from_field or severity_map.get(priority, "S3")
     urgency = priority
 
-    # Extract CSAT feedback if available
+    # Extract CSAT feedback if available (from built-in satisfaction or our custom field)
     satisfaction = fields.get("customfield_10041")
-    rating = 0
-    if isinstance(satisfaction, dict):
-        rating = satisfaction.get("rating", 0)
+    customer_rating_text = fields.get("customfield_10197") or ""
+    rating = None  # Default None = no rating yet
+    if isinstance(satisfaction, dict) and satisfaction.get("rating"):
+        rating = satisfaction.get("rating")
+    elif customer_rating_text and "(" in customer_rating_text:
+        # Parse from "★★★★☆ (4/5)" format
+        try:
+            rating = int(customer_rating_text.split("(")[1].split("/")[0])
+        except (IndexError, ValueError):
+            pass
 
     # Extract reporter info
     reporter = fields.get("reporter", {})
@@ -507,15 +535,35 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=503, detail="Jira integration not configured")
 
     body = await request.body()
+
     if not body:
+        # Empty body but triggered by user — likely a comment event
+        # Check if triggeredByUser is in query params
+        triggered_by = request.query_params.get("triggeredByUser", "")
+        if not triggered_by:
+            return JiraWebhookResponse(
+                issue_key="", action="ignored", success=False, detail="Empty body"
+            )
+        # Can't determine which issue — ignore for now
+        logger.info("Webhook: empty body with triggeredByUser=%s", triggered_by)
         return JiraWebhookResponse(
-            issue_key="", action="ignored", success=False, detail="Empty body"
+            issue_key="", action="ignored", success=False, detail="Empty body with user trigger"
         )
 
     import json as _json
-    data = _json.loads(body)
+    try:
+        data = _json.loads(body)
+    except _json.JSONDecodeError as exc:
+        logger.error("Webhook JSON parse error: %s body[:200]=%s", exc, body[:200])
+        return JiraWebhookResponse(
+            issue_key="", action="ignored", success=False, detail=f"Invalid JSON: {exc}"
+        )
     event = data.get("webhookEvent", "")
     issue_key, summary, description = jira.extract_issue_text(data)
+
+    # Handle comment_created from Jira Automation (minimal payload with just issue key)
+    if event == "comment_created" and not issue_key:
+        issue_key = data.get("issue", {}).get("key", "")
 
     logger.info("Webhook: event=%s key=%s", event, issue_key)
 
@@ -541,7 +589,8 @@ async def jira_webhook(request: Request, background_tasks: BackgroundTasks):
         )
 
     # Customer added a comment → re-triage with full conversation context
-    if event == "jira:issue_updated" and _is_customer_comment(data):
+    # Handles both: Jira webhook (jira:issue_updated) and Automation (comment_created)
+    if event == "comment_created" or (event == "jira:issue_updated" and _is_customer_comment(data)):
         background_tasks.add_task(_handle_customer_update, issue_key)
         return JiraWebhookResponse(
             issue_key=issue_key, action="re_triage", success=True,
@@ -637,6 +686,21 @@ async def _handle_customer_update(issue_key: str) -> None:
         severity=result.severity,
         information_complete=True,  # Customer provided more info
     )
+
+    # L3 escalation on re-triage
+    if result.triage_level == "L3 - Expert":
+        await jira.add_label(issue_key, "escalated")
+        if result.urgency not in ("Highest", "High"):
+            await jira.set_priority(issue_key, "High")
+        esc_note = (
+            f"ESCALATION: Re-triage elevated this ticket to L3 - Expert.\n\n"
+            f"AI confidence: {result.confidence} "
+            f"(score: {result.confidence_score:.2f}). "
+            f"Department: {result.department}. Severity: {result.severity}.\n"
+            f"This ticket requires specialist review."
+        )
+        await jira.add_comment(issue_key, esc_note, internal=True)
+        logger.info("Escalated %s to L3 after re-triage", issue_key)
 
     logger.info("Re-triaged %s: dept=%s conf=%s", issue_key, result.department, result.confidence)
 

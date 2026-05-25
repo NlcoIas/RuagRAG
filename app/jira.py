@@ -112,6 +112,25 @@ async def add_label(issue_key: str, label: str) -> bool:
         return False
 
 
+async def set_priority(issue_key: str, priority: str) -> bool:
+    """Set the priority on a Jira issue."""
+    if not JIRA_ENABLED:
+        return False
+    if priority not in PRIORITY_MAP:
+        return False
+
+    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
+    payload = {"fields": {"priority": {"id": PRIORITY_MAP[priority]}}}
+
+    async with httpx.AsyncClient(timeout=JIRA_TIMEOUT) as client:
+        resp = await client.put(url, headers=_headers(), json=payload)
+        if resp.status_code == 204:
+            logger.info("Set priority '%s' on %s", priority, issue_key)
+            return True
+        logger.error("Jira set_priority %s failed: %d %s", issue_key, resp.status_code, resp.text[:200])
+        return False
+
+
 def extract_issue_text(webhook_data: dict[str, Any]) -> tuple[str, str, str]:
     """Extract issue key, summary, and description from a Jira webhook payload.
 

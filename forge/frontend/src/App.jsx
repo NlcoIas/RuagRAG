@@ -103,8 +103,26 @@ function App() {
     .map((v, i) => ({ ...v, idx: i }))
     .filter((v) => v.feedback);
 
+  const isL3 = metadata.triageLevel === "L3 - Expert";
+  const isL2 = metadata.triageLevel === "L2 - Agent";
+  const triageBadgeClass = isL3 ? "badge-red" : isL2 ? "badge-yellow" : "badge-green";
+
   return (
     <div className="panel-body">
+      {/* L3 Escalation banner */}
+      {isL3 && (
+        <div className="escalation-banner">
+          <span className="esc-icon">&#9888;</span>
+          <div>
+            <div>ESCALATED — L3 Expert Review Required</div>
+            <div className="esc-detail">
+              Low AI confidence — this ticket needs specialist attention.
+              {metadata.department && ` Department: ${metadata.department}.`}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Version tabs */}
       <span className="label">Version</span>
       <div className="versions">
@@ -132,7 +150,7 @@ function App() {
       {/* Metadata badges */}
       <div className="badges">
         {metadata.confidence && (
-          <span className={`badge ${metadata.confidence === "High" ? "badge-green" : metadata.confidence === "Medium" ? "badge-yellow" : "badge-neutral"}`}>
+          <span className={`badge ${metadata.confidence === "High" ? "badge-green" : metadata.confidence === "Medium" ? "badge-yellow" : "badge-red"}`}>
             {metadata.confidence} confidence
           </span>
         )}
@@ -140,7 +158,7 @@ function App() {
           <span className="badge badge-blue">{metadata.department}</span>
         )}
         {metadata.triageLevel && (
-          <span className="badge badge-neutral">{metadata.triageLevel}</span>
+          <span className={`badge ${triageBadgeClass}`}>{metadata.triageLevel}</span>
         )}
         {metadata.kbScore > 0 && (
           <span className="badge badge-yellow">

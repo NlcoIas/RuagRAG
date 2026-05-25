@@ -113,11 +113,12 @@ function Dashboard() {
       ],4)}
 
       {section("ESC","Escalation",R.red,[
+        kpi("L3 Escalations",d.l3Count.toString(),d.triaged>0?Math.round(d.l3Count/d.triaged*100)+"% of triaged tickets":"No triaged tickets",R.red,d.triaged>0?d.l3Count/d.triaged*100:0,true),
         kpi("Escalation Accuracy","84.7%","Needs ground truth labels",R.amber,null,false),
         kpi("Unnecessary Escalation","8.3%","Needs resolution-level analysis",R.green,null,false),
         kpi("Missed Escalation Rate","4.1%","Needs escalation event tracking",R.amber,null,false),
         kpi("Escalation Resolution Time","18.4h","Needs L3 resolution timestamps",R.blue,null,false),
-      ],4)}
+      ],5)}
 
       {section("AI","AI Performance",R.charcoal,[
         kpi("Human Override Rate","31.6%","Needs Forge send tracking",R.blue,null,false),
@@ -155,14 +156,19 @@ function Dashboard() {
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px",marginBottom:"18px"}}>
         <ChartCard title="Triage Level & Resolution Time">
-          {bar("L1 Self-Svc",104,231,R.green)}
-          {bar("L2 Agent",88,231,R.blue)}
-          {bar("L3 Expert",39,231,R.amber)}
+          {bar("L1 Self-Svc",d.l1Count,Math.max(d.l1Count+d.l2Count+d.l3Count,1),R.green)}
+          {bar("L2 Agent",d.l2Count,Math.max(d.l1Count+d.l2Count+d.l3Count,1),R.blue)}
+          {bar("L3 Expert",d.l3Count,Math.max(d.l1Count+d.l2Count+d.l3Count,1),R.red)}
           <div style={{marginTop:10,display:"flex",gap:14,fontSize:10,color:R.grayLight}}>
-            <div><span style={{color:R.green,fontWeight:600}}>L1:</span> 8m avg</div>
-            <div><span style={{color:R.blue,fontWeight:600}}>L2:</span> 2.4h avg</div>
-            <div><span style={{color:R.amber,fontWeight:600}}>L3:</span> 18h avg</div>
+            <div><span style={{color:R.green,fontWeight:600}}>L1:</span> Self-service</div>
+            <div><span style={{color:R.blue,fontWeight:600}}>L2:</span> Agent</div>
+            <div><span style={{color:R.red,fontWeight:600}}>L3:</span> Escalated</div>
           </div>
+          {d.l3Count > 0 && (
+            <div style={{marginTop:8,padding:"6px 10px",background:"#FFF0F0",borderRadius:4,border:"1px solid #FFCDD2",fontSize:10,color:"#BF2600",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14}}>&#9888;</span> {d.l3Count} ticket{d.l3Count!==1?"s":""} escalated to L3 Expert
+            </div>
+          )}
         </ChartCard>
         <ChartCard title="RAG Retrieval Performance">
           <div style={{display:"flex",gap:10,marginBottom:10}}>
@@ -198,7 +204,8 @@ function Dashboard() {
           {d.recentTickets.length > 0 ? d.recentTickets.map((t) => {
             const c = t.confidence === "High" ? "h" : t.confidence === "Medium" ? "m" : "l";
             const ago = timeAgo(t.created);
-            return <Ticket key={t.key} k={t.key} s={t.summary} d={t.department} c={c} t={ago} />;
+            const esc = t.triageLevel === "L3 - Expert";
+            return <Ticket key={t.key} k={t.key} s={t.summary} d={t.department} c={c} t={ago} esc={esc} />;
           }) : <div style={{fontSize:11,color:R.grayLight,padding:"10px 0"}}>No triaged tickets yet.</div>}
         </ChartCard>
       </div>
@@ -279,15 +286,16 @@ function StatRow({label, value}) {
   return <div style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 0"}}><span style={{color:R.grayLight}}>{label}</span><span style={{color:R.dark}}>{value}</span></div>;
 }
 
-function Ticket({k, s, d, c, t}) {
+function Ticket({k, s, d, c, t, esc}) {
   const bg = c==="h"?R.greenLight:c==="m"?R.amberLight:"#F5F5F5";
   const fg = c==="h"?R.green:c==="m"?R.amber:R.grayLight;
   const lbl = c==="h"?"High":c==="m"?"Med":"Low";
   return (
-    <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${R.border}`}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${R.border}`,background:esc?"#FFF5F5":"transparent"}}>
       <div style={{fontSize:10,color:R.red,fontWeight:600,width:52}}>{k}</div>
       <div style={{fontSize:10,color:R.dark,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s}</div>
       <div style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:R.redLight,color:R.red}}>{d}</div>
+      {esc && <div style={{fontSize:9,padding:"1px 5px",borderRadius:3,fontWeight:700,background:"#FFEDEB",color:"#BF2600"}}>L3</div>}
       <div style={{fontSize:9,padding:"1px 5px",borderRadius:3,fontWeight:600,background:bg,color:fg}}>{lbl}</div>
       <div style={{fontSize:9,color:R.grayLight,width:36,textAlign:"right"}}>{t}</div>
     </div>
