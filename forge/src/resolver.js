@@ -447,6 +447,7 @@ resolver.define("getDashboardData", async () => {
     l3Count: triageCounts["L3 - Expert"],
 
     resolvedCount: resolved.length,
+    openCount: issues.filter((i) => !i.fields.resolutiondate).length,
     recentTickets,
 
     csatAvg: csatRatings.length ? Math.round(avg(csatRatings) * 10) / 10 : null,
