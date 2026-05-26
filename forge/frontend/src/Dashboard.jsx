@@ -92,7 +92,7 @@ function Dashboard() {
     }).catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={{fontFamily:"'Segoe UI',sans-serif",background:R.bg,padding:40,textAlign:"center",color:R.grayLight}}>Loading dashboard data...</div>;
+  if (loading) return <div style={{fontFamily:"'Segoe UI',sans-serif",background:R.bg,padding:40,textAlign:"center",color:R.grayLight,minHeight:"2000px"}}>Loading dashboard data...</div>;
   if (!d) return <div style={{fontFamily:"'Segoe UI',sans-serif",background:R.bg,padding:40,textAlign:"center",color:R.red}}>Failed to load dashboard data.</div>;
 
   // Compute aggregate statuses
@@ -156,8 +156,7 @@ function Dashboard() {
       {/* ═══ CUSTOMER EXPERIENCE ═══ */}
       {section("CX", "Customer Experience", CAT.customerExp, [
         kpi("Customer Satisfaction", d.csat + "/5", d.csatResponses + " survey responses", CAT.customerExp, null, d.csatResponses > 0),
-        kpi("Reopen Rate", "3.2%", "Needs status transition tracking", R.grayLight, null, false),
-      ], 2)}
+      ], 1)}
 
       {/* ═══ SUPPORT INTENSITY ═══ */}
       {section("SI", "Support Intensity", CAT.supportIntensity, [
