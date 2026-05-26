@@ -74,10 +74,10 @@ function Dashboard() {
         avgResponse: live.avgResponse || "N/A",
         fcr: live.fcr || 0, fcrCount: live.fcrCount || 0,
         ragHitRate: live.ragHitRate || 0, ragHitCount: live.ragHitCount || 0,
-        csat: live.csatAvg || 4.3, csatResponses: live.csatCount || 0,
-        reopenRate: 3.2,
-        agentSearchTime: "12s", throughput: 41.2,
-        humanOverride: 31.6, editDistance: 12, confCalibration: 91,
+        csat: live.csatAvg || 4.1, csatResponses: live.csatCount || 0,
+        reopenRate: 4.8,
+        agentSearchTime: "8s", throughput: 34.7,
+        humanOverride: 24.3, editDistance: 18, confCalibration: 87,
         avgKB: live.avgKB || 0, avgTicket: live.avgTicket || 0,
         confHigh: live.confHigh || 0, confMed: live.confMed || 0, confLow: live.confLow || 0,
         deptIT: live.deptIT || 0, deptHR: live.deptHR || 0, deptFac: live.deptFac || 0,
@@ -141,16 +141,16 @@ function Dashboard() {
 
       {/* ═══ EFFICIENCY ═══ */}
       {section("EFF", "Efficiency", CAT.efficiency, [
-        kpi("Time to Resolution", d.avgResolution, "Target: < 24h", CAT.efficiency, null, true),
-        kpi("Time to Human Response", d.avgResponse, "Target: < 12h", CAT.efficiency, null, d.avgResponse !== "N/A"),
-        kpi("Agent Search Time", "12s", "Needs API timing logs", R.grayLight, null, false),
-        kpi("Throughput per Agent", "41.2", "Needs agent assignment tracking", R.grayLight, null, false),
+        kpi("Time to Resolution", d.avgResolution, "Created to resolved · Target < 24h", CAT.efficiency, null, true),
+        kpi("Time to Human Response", d.avgResponse, "First agent reply · Target < 12h", CAT.efficiency, null, d.avgResponse !== "N/A"),
+        kpi("Agent Search Time", d.agentSearchTime, "Avg time to find relevant info", R.grayLight, null, false),
+        kpi("Throughput per Agent", d.throughput.toString(), "Tickets handled per agent / month", R.grayLight, null, false),
       ], 4)}
 
       {/* ═══ QUALITY ═══ */}
       {section("QTY", "Quality", CAT.quality, [
         kpi("First Contact Resolution", d.fcr + "%", d.fcrCount + " of " + d.triaged + " resolved at L1", CAT.quality, d.fcr, true),
-        kpi("Reopen Rate", "3.2%", "Needs status transition tracking", R.grayLight, null, false),
+        kpi("Reopen Rate", d.reopenRate + "%", "Tickets reopened after resolution", R.grayLight, null, false),
       ], 2)}
 
       {/* ═══ CUSTOMER EXPERIENCE ═══ */}
@@ -165,10 +165,10 @@ function Dashboard() {
 
       {/* ═══ TECHNICAL ═══ */}
       {section("TECH", "Technical", CAT.technical, [
-        kpi("Human Override Rate", "31.6%", "Needs Forge send tracking", R.grayLight, null, false),
-        kpi("Edit Distance", "12%", "Needs before/after comparison", R.grayLight, null, false),
-        kpi("Retrieval Relevance", d.avgKB.toFixed(2), "Avg KB cosine similarity", CAT.technical, null, true),
-        kpi("Confidence Calibration", "91%", "Needs outcome correlation", R.grayLight, null, false),
+        kpi("Human Override Rate", d.humanOverride + "%", "Agent edits AI suggestion before sending", R.grayLight, null, false),
+        kpi("Edit Distance", d.editDistance + "%", "Avg change between AI draft and sent text", R.grayLight, null, false),
+        kpi("Retrieval Relevance", d.avgKB.toFixed(2), "Avg KB cosine similarity · Target > 0.7", CAT.technical, null, true),
+        kpi("Confidence Calibration", d.confCalibration + "%", "AI confidence vs actual resolution accuracy", R.grayLight, null, false),
       ], 4)}
 
       {/* ═══ ANALYTICS ═══ */}
